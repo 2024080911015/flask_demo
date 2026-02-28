@@ -1,5 +1,5 @@
 Flask==3.0.0
-torch==2.1.0
+torch
 pandas==2.1.4
 
 # 可选：如果需要CPU版本的PyTorch，可以使用以下版本
