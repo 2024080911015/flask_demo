@@ -58,7 +58,13 @@ def tuijian():
 #返回所有用户信息的接口
 @app.route('/users')
 def get_users():
-    return jsonify(list(user_info_map.values()))    
+    users_list=[]
+    for id,info in user_info_map.items():
+        users_list.append({
+            "student_id": id,
+            "student_info": info
+        })
+    return jsonify(users_list)    
 #根据ID返回用户信息的接口
 @app.route('/user')
 def get_user():
