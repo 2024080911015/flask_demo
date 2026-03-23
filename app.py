@@ -32,7 +32,10 @@ try:
             user_info_map = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
             print(f"Loaded user info for {len(user_info_map)} users.")
 except Exception as e:
-    print(f"Error loading user info: {e}")        
+    print(f"Error loading user info: {e}")
+
+# 加载社交网络数据 (来自 step3_recommend.py)
+follow_dict = step3_recommend.follow_dict
 
 #网页主页面
 @app.route('/')
@@ -76,6 +79,75 @@ def get_user():
         "student_id": sid,
         "student_info": user_info
     })
+#获取用户的关注列表接口
+@app.route('/following')
+def get_following():
+    sid = request.args.get('id', default=None, type=int)
+    if sid is None:
+        return jsonify({"error": "Missing 'id' parameter"}), 400
+    following_list = follow_dict.get(sid, [])
+    following_list_info = []
+    for fid in following_list:
+        following_info = user_info_map.get(fid, f"User {fid}")
+        following_list_info.append(following_info)
+    return jsonify({
+        "student_id": sid,
+        "student_info": user_info_map.get(sid, f"ID:{sid}"),
+        "count": len(following_list_info),
+        "following": following_list_info,
+    })
+#获取用户的粉丝列表接口
+@app.route('/followers')
+def get_followers():
+    sid = request.args.get('id', default=None, type=int)
+    if sid is None:
+        return jsonify({"error": "Missing 'id' parameter"}), 400
+
+    # 从 follow_dict 反向查找粉丝
+    followers_list = []
+    for user_id, following in follow_dict.items():
+        if sid in following:
+            followers_list.append(user_id)
+
+    followers_info_list = []
+    for fid in followers_list:
+        follower_info = user_info_map.get(fid, f"User {fid}")
+        followers_info_list.append(follower_info)
+
+    return jsonify({
+            "student_id": sid,
+            "followers_count": len(followers_list),
+            "followers": followers_info_list
+        }) 
+#返回整个社交网络的情况接口
+@app.route('/social/stats')
+def get_social_stats():
+    total_users = len(user_info_map)
+    total_follows = sum(len(following) for following in follow_dict.values())
+    avg_follows = total_follows / total_users if total_users > 0 else 0
+
+    # 计算关注最多的用户
+    max_follows = 0
+    most_popular = []
+    for user_id, following in follow_dict.items():
+        if len(following) > max_follows:
+            max_follows = len(following)
+            most_popular = [user_id]
+        elif len(following) == max_follows:
+            most_popular.append(user_id)
+    most_popular_info=[]
+    for uid in most_popular:
+        info=user_info_map.get(uid,f"User {uid}")
+        most_popular_info.append(info)
+    return jsonify({
+        "total_users": total_users,
+        "total_follows": total_follows,
+        "average_follows": round(avg_follows, 2),
+        "max_follows": max_follows,
+        "most_popular_users": most_popular_info
+    })
+
+
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
     app.run(host="127.0.0.1", port=5000, debug=True)

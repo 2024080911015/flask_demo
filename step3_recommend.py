@@ -20,6 +20,7 @@ except UnicodeDecodeError:
     df_users = pd.read_csv(csv_path, encoding='gbk')
 
 user_info_map = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
+
 #加载用户关注列表的函数
 def load_social_data():
     """加载社交网络数据"""
@@ -42,23 +43,54 @@ def load_social_data():
     except Exception as e:
         print(f"⚠️  加载社交网络数据失败: {e}")
         return {}
+
+follow_dict=load_social_data()
+
+# 获取用户关注列表的接口函数
+def get_following(user_id):
+    """获取用户的关注列表"""
+    return follow_dict.get(user_id, [])
+
 # 3. 核心推荐算法
 def recommend_friends(user_id, top_k=5):
     u_idx = user_id - 1
-    if u_idx < 0 or u_idx >= embeddings.shape[0]: return[]
-    
+    if u_idx < 0 or u_idx >= embeddings.shape[0]:
+        return []
+
     target_emb = embeddings[u_idx].unsqueeze(0)
     similarity = F.cosine_similarity(target_emb, embeddings)
-    
+
     # 获取最高分的几个人
-    scores, indices = torch.topk(similarity, k=top_k + 1)
+    scores, indices = torch.topk(similarity, k=top_k + 10)
     recommend_ids = (indices + 1).tolist()
-    
+
     if user_id in recommend_ids:
         recommend_ids.remove(user_id)
-        
-    return recommend_ids[:top_k]
 
+    # 加入社交网络信息优化
+    # 方式1: 优先推荐用户已关注的人的相似用户
+    final_rec = []
+    user_following = follow_dict.get(user_id, [])
+
+    # 首先从推荐列表中筛选出与用户关注的人相似的用户
+    for rid in recommend_ids:
+        if rid in user_following:
+            continue  # 不推荐已关注的人
+
+        # 检查推荐用户是否与目标用户有共同关注
+        rid_following = follow_dict.get(rid, [])
+        common_following = set(user_following) & set(rid_following)
+
+        if len(common_following) > 0:
+            final_rec.append(rid)
+            if len(final_rec) >= top_k:
+                return final_rec
+
+    # 如果不够，从剩余的推荐列表中补充
+    remaining = [rid for rid in recommend_ids if rid not in final_rec and rid not in user_following]
+    final_rec.extend(remaining)
+
+    return final_rec[:top_k]
 # 4. 测试
 if __name__ == "__main__":
     while True:
