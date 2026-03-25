@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园交友推荐系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-indigo-50 min-h-screen font-sans text-gray-800">
+
+    <header class="bg-indigo-600 text-white shadow-md py-4">
+        <div class="container mx-auto px-6 flex justify-between items-center">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                校园交友推荐网络
+            </h1>
+            <div class="flex items-center gap-4">
+                <input type="number" id="searchInput" placeholder="输入学号 (如: 1)" class="px-4 py-2 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-64">
+                <button onclick="searchUser()" class="bg-indigo-800 hover:bg-indigo-900 px-6 py-2 rounded-lg font-medium transition-colors shadow-sm">
+                    查询分析
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+        <div class="lg:col-span-1 space-y-6">
+            <div class="glass-panel rounded-xl shadow-sm border border-indigo-100 p-6">
+                <h3 class="text-lg font-bold text-indigo-900 mb-4 border-b pb-2">🌐 全站数据统计</h3>
+                <div class="grid grid-cols-2 gap-4" id="statsContainer">
+                    <div class="text-center p-3 bg-indigo-50 rounded-lg"><p class="text-xs text-gray-500">加载中...</p></div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-xl shadow-sm border border-indigo-100 p-6 hidden" id="userProfilePanel">
+                <div class="flex items-center gap-3 mb-4 border-b pb-4">
+                    <div class="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold text-xl">
+                        ID
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">目标用户 #<span id="displayUserId"></span></h2>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">主节点</span>
+                    </div>
+                </div>
+                <div id="userInfoTags" class="space-y-3">
+                    </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-3 space-y-6">
+
+            <div id="loadingStatus" class="bg-blue-50 text-blue-600 p-4 rounded-xl hidden text-center animate-pulse">
+                正在计算特征向量与社交关系网络...
+            </div>
+
+            <div id="resultsArea" class="hidden space-y-6">
+                <div class="glass-panel rounded-xl shadow-sm border border-indigo-100 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-xl font-bold text-indigo-900 flex items-center gap-2">
+                            ✨ AI 智能推荐
+                            <span class="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Top 5</span>
+                        </h3>
+                    </div>
+                    <div id="recommendList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass-panel rounded-xl shadow-sm border border-indigo-100 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex justify-between">
+                            正在关注 <span id="followingCount" class="text-indigo-600">0</span>
+                        </h3>
+                        <div id="followingList" class="custom-scroll overflow-y-auto max-h-80 space-y-3 pr-2"></div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl shadow-sm border border-indigo-100 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex justify-between">
+                            TA 的粉丝 <span id="followersCount" class="text-indigo-600">0</span>
+                        </h3>
+                        <div id="followersList" class="custom-scroll overflow-y-auto max-h-80 space-y-3 pr-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="emptyState" class="flex flex-col items-center justify-center h-96 text-gray-400">
+                <svg class="w-20 h-20 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <p class="text-lg">在顶部输入学号，开始探索推荐网络</p>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // 页面加载时获取全站统计
+        window.onload = async () => {
+            try {
+                const res = await fetch('/social/stats');
+                const data = await res.json();
+                document.getElementById('statsContainer').innerHTML = `
+                    <div class="text-center p-3 bg-indigo-50 rounded-lg">
+                        <div class="text-2xl font-bold text-indigo-700">${data.total_users}</div>
+                        <div class="text-xs text-gray-500 mt-1">总用户数</div>
+                    </div>
+                    <div class="text-center p-3 bg-indigo-50 rounded-lg">
+                        <div class="text-2xl font-bold text-indigo-700">${data.total_follows}</div>
+                        <div class="text-xs text-gray-500 mt-1">总社交连边</div>
+                    </div>
+                    <div class="text-center p-3 bg-indigo-50 rounded-lg">
+                        <div class="text-2xl font-bold text-indigo-700">${data.average_follows}</div>
+                        <div class="text-xs text-gray-500 mt-1">平均关注数</div>
+                    </div>
+                    <div class="text-center p-3 bg-indigo-50 rounded-lg">
+                        <div class="text-2xl font-bold text-indigo-700">${data.max_follows}</div>
+                        <div class="text-xs text-gray-500 mt-1">最高关注度</div>
+                    </div>
+                `;
+            } catch (e) {
+                console.error("无法加载统计数据");
+            }
+        };
+
+        // 将后端的字符串信息格式化为漂亮的 HTML 标签卡片
+        function parseInfoToCard(infoString, isHighlight = false) {
+            const parts = infoString.split(',');
+            let html = `<div class="p-4 rounded-lg border ${isHighlight ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'}">`;
+
+            parts.forEach(part => {
+                const [key, value] = part.split(':');
+                if(!value) return;
+
+                let valHtml = '';
+                // 如果是爱好或标签（包含空格），拆分成胶囊样式
+                if (value.includes(' ')) {
+                    const items = value.split(' ').filter(i => i.trim() !== '');
+                    valHtml = items.map(i => `<span class="inline-block bg-white text-xs px-2 py-1 rounded border shadow-sm mr-1 mb-1">${i}</span>`).join('');
+                } else {
+                    valHtml = `<span class="font-medium text-gray-800">${value}</span>`;
+                }
+
+                html += `
+                    <div class="flex items-start mb-2 text-sm">
+                        <span class="text-gray-500 w-12 shrink-0">${key}:</span>
+                        <div class="flex-1 flex flex-wrap">${valHtml}</div>
+                    </div>`;
+            });
+            html += `</div>`;
+            return html;
+        }
+
+        // 主搜索逻辑
+        async function searchUser() {
+            const sid = document.getElementById('searchInput').value;
+            if (!sid) return alert("请输入学号");
+
+            // UI 状态切换
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('resultsArea').classList.add('hidden');
+            document.getElementById('userProfilePanel').classList.add('hidden');
+            const loader = document.getElementById('loadingStatus');
+            loader.classList.remove('hidden');
+
+            try {
+                // 并发请求所有数据，提升页面加载速度
+                const [tuijianRes, followingRes, followersRes] = await Promise.all([
+                    fetch(`/tuijian?id=${sid}`),
+                    fetch(`/following?id=${sid}`),
+                    fetch(`/followers?id=${sid}`)
+                ]);
+
+                const tuijianData = await tuijianRes.json();
+                const followingData = await followingRes.json();
+                const followersData = await followersRes.json();
+
+                if(tuijianData.error) throw new Error("用户不存在或接口错误");
+
+                // 1. 渲染当前用户画像
+                document.getElementById('displayUserId').innerText = sid;
+                document.getElementById('userInfoTags').innerHTML = parseInfoToCard(tuijianData.student_info, true);
+                document.getElementById('userProfilePanel').classList.remove('hidden');
+
+                // 2. 渲染 AI 推荐列表
+                const recContainer = document.getElementById('recommendList');
+                recContainer.innerHTML = '';
+                tuijianData.recommend_friends.forEach(info => {
+                    recContainer.innerHTML += parseInfoToCard(info, false);
+                });
+
+                // 3. 渲染关注列表
+                document.getElementById('followingCount').innerText = followingData.count || 0;
+                const folContainer = document.getElementById('followingList');
+                folContainer.innerHTML = '';
+                (followingData.following || []).forEach(info => {
+                    folContainer.innerHTML += parseInfoToCard(info, false);
+                });
+
+                // 4. 渲染粉丝列表
+                document.getElementById('followersCount').innerText = followersData.followers_count || 0;
+                const fersContainer = document.getElementById('followersList');
+                fersContainer.innerHTML = '';
+                (followersData.followers || []).forEach(info => {
+                    fersContainer.innerHTML += parseInfoToCard(info, false);
+                });
+
+                // 显示结果
+                loader.classList.add('hidden');
+                document.getElementById('resultsArea').classList.remove('hidden');
+
+            } catch (err) {
+                loader.classList.add('hidden');
+                alert("查询失败: " + err.message);
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        }
+
+        // 支持回车键搜索
+        document.getElementById('searchInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') searchUser();
+        });
+    </script>
+</body>
+</html>

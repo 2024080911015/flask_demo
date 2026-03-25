@@ -1,4 +1,4 @@
-from flask import Flask,request, jsonify
+from flask import Flask,request, jsonify,render_template
 import os
 import torch
 import torch.nn.functional as F
@@ -40,7 +40,7 @@ follow_dict = step3_recommend.follow_dict
 #网页主页面
 @app.route('/')
 def home():
-    return "Flask is running. Try /tuijian?id=1"
+    return render_template('index.html')
 #推荐接口
 @app.route('/tuijian')
 def tuijian():
