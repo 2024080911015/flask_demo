@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import pandas as pd
 import step3_recommend
+from step3_recommend import COMMUNITY_RULES
 
 
 app =Flask(__name__)
@@ -41,19 +42,30 @@ follow_dict = step3_recommend.follow_dict
 @app.route('/')
 def home():
     return render_template('index.html')
+#社区列表接口
+@app.route('/community')
+def get_community():
+    return jsonify({
+        "status": "success",
+        "communities": list(COMMUNITY_RULES.keys())
+    })
 #推荐接口
 @app.route('/tuijian')
 def tuijian():
     sid=request.args.get('id',default=None, type=int)
+    
+    mode=request.args.get('mode',default='social', type=str) #新增 mode 参数，默认 social
+    community_tag=request.args.get('community',default=None,type=str)
     if sid is None:
         return jsonify({"error": "Missing 'id' parameter"}), 400
-    rec_ids=step3_recommend.recommend_friends(sid,top_k=5) #具体的推荐算法，来自step3_recommend.py
+    rec_ids=step3_recommend.recommend_friends(sid,top_k=5, mode=mode, community=community_tag) #具体的推荐算法，来自step3_recommend.py
     rec_info_list=[]         #根据ID来获取到信息（数据来源为users.csv）
     for rec_id in rec_ids:
         rec_info=user_info_map.get(rec_id,f"User {rec_id}")
         rec_info_list.append(rec_info)
     return jsonify({
             "student_id": sid,
+            "mode": mode,
             "student_info": user_info_map.get(sid, f"ID:{sid}"),
             "recommend_friends": rec_info_list,
             "count": len(rec_info_list)
@@ -146,8 +158,104 @@ def get_social_stats():
         "max_follows": max_follows,
         "most_popular_users": most_popular_info
     })
+#社交诊断报告接口
+# ================= 新增：AI 社交诊断报告接口 =================
+@app.route('/social/report')
+def get_social_report():
+    sid = request.args.get('id', default=None, type=int)
+    if sid is None:
+        return jsonify({"error": "Missing 'id' parameter"}), 400
 
+    # 为了使用圈子判断规则，引入上一轮在 step3_recommend 中定义的规则
+    # 注意：确保 step3_recommend.py 里面已经定义了 COMMUNITY_RULES
+    try:
+        from step3_recommend import COMMUNITY_RULES
+    except ImportError:
+        # 如果还没定义，这里给个降级兜底的默认规则
+        COMMUNITY_RULES = {
+            "考研圈": ["考研", "保研", "复习", "图书馆", "英语六级"],
+            "技术圈": ["编程", "代码", "算法", "开发", "极客", "C++", "Python", "Java"],
+            "运动圈": ["篮球", "足球", "羽毛球", "跑步", "健身"],
+            "二次元": ["动漫", "二次元", "游戏", "原神", "漫画", "ACG"],
+            "文艺圈": ["音乐", "吉他", "摄影", "画画", "电影"]
+        }
+
+    # 1. 获取该用户的完整社交网络（关注 + 粉丝 去重）
+    following_list = follow_dict.get(sid, [])
+    followers_list = [uid for uid, following in follow_dict.items() if sid in following]
+    all_friends = list(set(following_list) | set(followers_list))
+    total_connections = len(all_friends)
+
+    # 2. 诊断网络地位 (依据节点度数)
+    if total_connections == 0:
+        status_title = "潜水节点"
+        status_desc = "你的社交网络还是白纸一张，目前处于绝对边缘位置。"
+    elif total_connections < 3:
+        status_title = "萌新节点"
+        status_desc = "你的社交圈较窄，属于网络中的边缘节点，还有很大的拓展空间。"
+    elif total_connections < 10:
+        status_title = "活跃节点"
+        status_desc = "你的社交范围适中，在特定的圈子内保持着良好的连接。"
+    else:
+        status_title = "核心枢纽"
+        status_desc = "你是名副其实的社交达人，网络连通性极强，是信息传播的重要枢纽。"
+
+    # 3. 统计圈层分布
+    community_counts = {}
+    total_classified = 0
+
+    for fid in all_friends:
+        info_str = str(user_info_map.get(fid, ""))
+        # 遍历所有圈子规则
+        for comm, keywords in COMMUNITY_RULES.items():
+            if any(kw in info_str for kw in keywords):
+                community_counts[comm] = community_counts.get(comm, 0) + 1
+                total_classified += 1
+                break # 为了计算方便，命中一个主要圈子就跳出，防止一个人被重复算比例超过100%
+
+    distribution = []
+    dominant_comm = None # 占比最大的圈子
+    max_count = 0
+
+    if total_classified > 0:
+        for comm, count in community_counts.items():
+            percent = round((count / total_classified) * 100)
+            distribution.append({"name": comm, "percent": percent, "count": count})
+            if count > max_count:
+                max_count = count
+                dominant_comm = comm
+        # 按比例从高到低排序
+        distribution.sort(key=lambda x: x['percent'], reverse=True)
+
+    # 4. 生成 AI 专属行动建议
+    advice = ""
+    if total_connections == 0:
+        advice = "系统建议：不妨先在上方【AI 智能推荐】里逛逛，试着关注几个带有相似标签的同学破冰吧！"
+    elif dominant_comm == "考研圈":
+        advice = "系统建议：你的好友大部分都在为学业奋斗，学习氛围浓厚。但也请注意劳逸结合，建议尝试通过系统推荐结交一些【运动圈】的同学，一起跑个步。"
+    elif dominant_comm == "技术圈":
+        advice = "系统建议：你的技术交流圈子已经初步成型。可以多参加线下的黑客松或开源项目，将线上好友转化为线下的技术合伙人。"
+    elif dominant_comm == "二次元":
+        advice = "系统建议：找到同好一定很开心！不过你也可以偶尔看看【技术圈】或【文艺圈】的人，说不定能组队做一款独立游戏呢。"
+    elif dominant_comm:
+        advice = f"系统建议：你在【{dominant_comm}】有很好的人脉基础。保持优势的同时，可以主动去探索你不熟悉的领域，让校园生活更多元。"
+    else:
+        advice = "系统建议：你的圈层非常丰富多元！继续保持开放的社交态度，你是连接不同群体的重要桥梁。"
+
+    # 返回组装好的报告 JSON
+    return jsonify({
+        "student_id": sid,
+        "status": {
+            "title": status_title,
+            "description": status_desc,
+            "total_connections": total_connections
+        },
+        "distribution": distribution,
+        "advice": advice
+    })
+
+    
 
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
