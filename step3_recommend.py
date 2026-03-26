@@ -52,7 +52,14 @@ def get_following(user_id):
     return follow_dict.get(user_id, [])
 
 # 3. 核心推荐算法
-def recommend_friends(user_id, top_k=5):
+COMMUNITY_RULES = {
+    "考研圈": ["考研", "保研", "复习", "图书馆", "英语六级", "自习"],
+    "技术圈": ["编程", "代码", "算法", "开发", "极客", "C++", "Python", "Java"],
+    "运动圈": ["篮球", "足球", "羽毛球", "跑步", "健身", "体育", "游泳"],
+    "二次元": ["动漫", "二次元", "游戏", "原神", "漫画", "Cosplay", "ACG"],
+    "文艺圈": ["音乐", "吉他", "摄影", "画画", "电影", "阅读", "钢琴"]
+}
+def recommend_friends(user_id, top_k=5, mode="social", community=None):
     u_idx = user_id - 1
     if u_idx < 0 or u_idx >= embeddings.shape[0]:
         return []
@@ -60,36 +67,54 @@ def recommend_friends(user_id, top_k=5):
     target_emb = embeddings[u_idx].unsqueeze(0)
     similarity = F.cosine_similarity(target_emb, embeddings)
 
-    # 获取最高分的几个人
-    scores, indices = torch.topk(similarity, k=top_k + 10)
-    recommend_ids = (indices + 1).tolist()
+    # 【关键修改】：因为要过滤特定圈子的人，不能只取 top_k 了，
+    # 必须把所有人的相似度降序排个名，然后从高到低往下找，直到凑齐符合圈子条件的 top_k
+    sorted_scores, sorted_indices = torch.sort(similarity, descending=True)
+    
+    candidate_ids = []
+    
+    for idx in sorted_indices.tolist():
+        rid = idx + 1
+        if rid == user_id: 
+            continue
+            
+        # ================= 社区过滤逻辑 =================
+        if community and community in COMMUNITY_RULES:
+            keywords = COMMUNITY_RULES[community]
+            user_info_str = str(user_info_map.get(rid, ""))
+            # 只要该用户的 info 中包含任意一个该圈子的关键词，就认为他属于这个圈子
+            if not any(kw in user_info_str for kw in keywords):
+                continue # 不属于该圈子，直接跳过，看下一个相似度高的人
+        # ================================================
+        
+        candidate_ids.append(rid)
+        
+        # 取足够多的候选人用于后续社交网络模式的过滤，避免过滤完数量不够
+        if len(candidate_ids) >= top_k + 20: 
+            break
 
-    if user_id in recommend_ids:
-        recommend_ids.remove(user_id)
+    # ================= 模式分支逻辑 =================
+    if mode == "gnn":
+        return candidate_ids[:top_k]
 
-    # 加入社交网络信息优化
-    # 方式1: 优先推荐用户已关注的人的相似用户
+    # 模式 B: 社交网络优化模式
     final_rec = []
     user_following = follow_dict.get(user_id, [])
 
-    # 首先从推荐列表中筛选出与用户关注的人相似的用户
-    for rid in recommend_ids:
+    for rid in candidate_ids:
         if rid in user_following:
-            continue  # 不推荐已关注的人
-
-        # 检查推荐用户是否与目标用户有共同关注
+            continue
         rid_following = follow_dict.get(rid, [])
         common_following = set(user_following) & set(rid_following)
-
+        
         if len(common_following) > 0:
             final_rec.append(rid)
             if len(final_rec) >= top_k:
                 return final_rec
 
-    # 如果不够，从剩余的推荐列表中补充
-    remaining = [rid for rid in recommend_ids if rid not in final_rec and rid not in user_following]
+    # 补充剩余的
+    remaining = [rid for rid in candidate_ids if rid not in final_rec and rid not in user_following]
     final_rec.extend(remaining)
-
     return final_rec[:top_k]
 # 4. 测试
 if __name__ == "__main__":
