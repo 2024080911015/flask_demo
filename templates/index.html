@@ -297,18 +297,27 @@
                 // 2. 渲染推荐卡片
                 const recContainer = document.getElementById('recommendList');
                 recContainer.innerHTML = '';
-                tuijianData.recommend_friends.forEach((info, index) => {
-                    const tags = parseInfoTags(info);
-                    recContainer.innerHTML += `
-                        <div class="bg-gray-50/50 p-5 rounded-xl border border-gray-100 transition hover:border-indigo-100 hover:bg-indigo-50/20 group">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex flex-wrap gap-1.5">${tags.basic}</div>
-                                <span class="text-xl font-bold text-indigo-200 group-hover:text-indigo-500 transition">#${index+1}</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1 mt-2">${tags.hobbies}</div>
+                if (!tuijianData.recommend_friends || tuijianData.recommend_friends.length === 0) {
+                    recContainer.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+                            <div class="text-6xl mb-4">🤔</div>
+                            <p class="text-sm">暂时没有找到合适的推荐</p>
                         </div>
                     `;
-                });
+                } else {
+                    tuijianData.recommend_friends.forEach((info, index) => {
+                        const tags = parseInfoTags(info);
+                        recContainer.innerHTML += `
+                            <div class="bg-gray-50/50 p-5 rounded-xl border border-gray-100 transition hover:border-indigo-100 hover:bg-indigo-50/20 group">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex flex-wrap gap-1.5">${tags.basic}</div>
+                                    <span class="text-xl font-bold text-indigo-200 group-hover:text-indigo-500 transition">#${index+1}</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1 mt-2">${tags.hobbies}</div>
+                            </div>
+                        `;
+                    });
+                }
 
                 // 3. 渲染粉丝/关注列表
                 renderRelationList('following', followingData.following);
