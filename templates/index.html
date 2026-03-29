@@ -79,13 +79,14 @@
                         <div id="diagTitle" class="font-bold text-3xl text-indigo-600 shrink-0">核心</div>
                         <p id="diagDesc" class="text-xs text-gray-600 leading-relaxed"></p>
                     </div>
-                    <div class="mb-5 aspect-square flex items-center justify-center relative">
+                    <div class="mb-5 h-72 flex items-center justify-center relative">
                         <canvas id="communityChart"></canvas>
                         <div id="connectionsCount" class="absolute text-center">
                             <div class="text-3xl font-extrabold text-gray-800" id="diagConnCount">0</div>
                             <div class="text-[10px] text-gray-500">总连接数</div>
                         </div>
                     </div>
+                    <p class="text-[10px] text-gray-400 text-center leading-tight">注：因好友可能同时具有多重身份（如既爱运动又爱技术），圈层比例可大于100%</p>
                     <div class="p-3 bg-blue-50 text-blue-800 rounded-lg text-xs leading-relaxed">
                         <strong>AI 行动建议：</strong> <span id="diagAdvice">正在生成...</span>
                     </div>
@@ -376,12 +377,12 @@
 
             // 准备图表数据
             const labels = data.distribution.map(d => d.name);
-            const values = data.distribution.map(d => d.percent);
+            const values = data.distribution.map(d => d.count);
 
             // 初始化 Chart.js
             const ctx = document.getElementById('communityChart').getContext('2d');
             myChart = new Chart(ctx, {
-                type: 'pie', // 饼图：每个扇形角度相同，面积代表比例
+                type: 'pie',
                 data: {
                     labels: labels,
                     datasets: [{
@@ -394,7 +395,34 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: { legend: { display: false } } // 隐藏自带图例
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                font: { size: 9 },
+                                padding: 8,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    return data.labels.map((label, i) => ({
+                                        text: `${label} (${data.datasets[0].data[i]}人)`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        hidden: false,
+                                        index: i
+                                    }));
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}人`;
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
