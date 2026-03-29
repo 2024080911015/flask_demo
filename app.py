@@ -173,11 +173,33 @@ def get_social_report():
     except ImportError:
         # 如果还没定义，这里给个降级兜底的默认规则
         COMMUNITY_RULES = {
-            "考研圈": ["考研", "保研", "复习", "图书馆", "英语六级"],
-            "技术圈": ["编程", "代码", "算法", "开发", "极客", "C++", "Python", "Java"],
-            "运动圈": ["篮球", "足球", "羽毛球", "跑步", "健身"],
-            "二次元": ["动漫", "二次元", "游戏", "原神", "漫画", "ACG"],
-            "文艺圈": ["音乐", "吉他", "摄影", "画画", "电影"]
+            "运动健将圈": [
+                "足球", "羽毛球", "跑步", "骑行",
+                "运动达人",
+                "体育"
+            ],
+            "文艺手作圈": [
+                "音乐", "舞蹈", "绘画", "剪纸", "缝纫",
+                "美术"
+            ],
+            "硬核技术圈": [
+                "编程", "机械",
+                "技术大牛", "高冷",
+                "计算机", "电气", "通信", "土木"
+            ],
+            "二次元宅圈": [
+                "动漫",
+                "宅属性", "熬夜的神", "社恐星人", "可爱"
+            ],
+            "佛系养生圈": [
+                "种植", "围棋", "天文",
+                "吃货", "早睡早起", "作息规律", "温和", "社交普通型",
+                "生物", "医学", "会计", "英语"
+            ],
+            "社交风云圈": [
+                "社交牛逼症", "镇圈大佬", "段子手",
+                "新闻", "法学"
+            ]
         }
 
     # 1. 获取该用户的完整社交网络（关注 + 粉丝 去重）
@@ -186,19 +208,22 @@ def get_social_report():
     all_friends = list(set(following_list) | set(followers_list))
     total_connections = len(all_friends)
 
-    # 2. 诊断网络地位 (依据节点度数)
+    # 2. 诊断网络地位 (依据节点度数，基于实际数据分布调整)
     if total_connections == 0:
         status_title = "潜水节点"
-        status_desc = "你的社交网络还是白纸一张，目前处于绝对边缘位置。"
-    elif total_connections < 3:
+        status_desc = "你的社交网络还是白纸一张，目前处于绝对。"
+    elif total_connections <= 20:
         status_title = "萌新节点"
-        status_desc = "你的社交圈较窄，属于网络中的边缘节点，还有很大的拓展空间。"
-    elif total_connections < 10:
+        status_desc = "你的社交圈较小，处于网络边缘，有很大拓展空间。"
+    elif total_connections <= 35:
         status_title = "活跃节点"
-        status_desc = "你的社交范围适中，在特定的圈子内保持着良好的连接。"
+        status_desc = "你的社交范围适中，在特定圈子内保持着良好连接。"
+    elif total_connections <= 45:
+        status_title = "核心节点"
+        status_desc = "你是圈子里的活跃分子，社交网络已相当稳固。"
     else:
-        status_title = "核心枢纽"
-        status_desc = "你是名副其实的社交达人，网络连通性极强，是信息传播的重要枢纽。"
+        status_title = "超级枢纽"
+        status_desc = "你是校园社交网络的连接者，信息传播的关键节点。"
 
     # 3. 统计圈层分布
     community_counts = {}
@@ -258,4 +283,4 @@ def get_social_report():
 
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)

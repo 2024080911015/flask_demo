@@ -381,7 +381,7 @@
             // 初始化 Chart.js
             const ctx = document.getElementById('communityChart').getContext('2d');
             myChart = new Chart(ctx, {
-                type: 'polarArea', // 极坐标图更适合圈层分布
+                type: 'pie', // 饼图：每个扇形角度相同，面积代表比例
                 data: {
                     labels: labels,
                     datasets: [{
@@ -394,8 +394,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: { legend: { display: false } }, // 隐藏自带图例
-                    scales: { r: { display: false } } // 隐藏刻度
+                    plugins: { legend: { display: false } } // 隐藏自带图例
                 }
             });
         }
