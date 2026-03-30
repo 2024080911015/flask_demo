@@ -28,6 +28,12 @@ class Account(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False, index=True) # 加上索引加速登录查询
     password_hash = db.Column(db.String(255), nullable=False)
 
+# 定义用户信息模型
+class UserInfo(db.Model):
+    __tablename__ = 'users'
+    uid = db.Column(db.Integer, primary_key=True)
+    info = db.Column(db.Text, nullable=False)
+
 # 初始化数据库表
 with app.app_context():
     db.create_all()
@@ -334,17 +340,29 @@ def api_register():
     data=request.get_json()
     if not data:
         return jsonify({"error": "Missing JSON body"}), 400
+
     username=data.get('username')
     password=data.get('password')
 
-    info = data.get('info', '性别:未知,年级:未知,专业:未知,爱好:无,标签:萌新')
+    # 支持分别接收字段或整体 info
+    if 'info' in data:
+        info = data.get('info')
+    else:
+        # 从各个字段拼接 info
+        gender = data.get('gender', '未知')
+        grade = data.get('grade', '未知')
+        major = data.get('major', '未知')
+        hobbies = data.get('hobbies', '无')
+        tags = data.get('tags', '萌新')
+        info = f"性别:{gender},年级:{grade},专业:{major},爱好:{hobbies},标签:{tags}"
+
     if not username or not password:
         return jsonify({"status": "error", "message": "用户名和密码不能为空"}), 400
-    
+
     # 1. 检查数据库中是否已存在该用户名
     if Account.query.filter_by(username=username).first():
         return jsonify({"status": "error", "message": "用户名已存在"}), 409
-    
+
     try:
         # 使用全局 next_uid（需声明为 global）
         global next_uid
@@ -353,9 +371,13 @@ def api_register():
 
         hashed_pw=generate_password_hash(password)
         new_account = Account(uid=new_uid, username=username, password_hash=hashed_pw)
+        new_user_info = UserInfo(uid=new_uid, info=info)
+
         db.session.add(new_account)
+        db.session.add(new_user_info)
         db.session.commit()
 
+        # 同时写入 users.csv 保持兼容
         with open(users_csv_path, mode='a', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([new_uid, info])
@@ -365,7 +387,7 @@ def api_register():
         return jsonify({
             "status": "success",
             "message": "注册成功",
-            "data": {"uid": new_uid, "username": username}
+            "data": {"uid": new_uid, "username": username, "info": info}
         }), 201
 
     except Exception as e:
