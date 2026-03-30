@@ -1,15 +1,36 @@
-from flask import Flask,request, jsonify,render_template
+from flask import Flask,request, jsonify,render_template,session
 import os
 import torch
 import torch.nn.functional as F
 import pandas as pd
 import step3_recommend
 from step3_recommend import COMMUNITY_RULES
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+import csv
 
 
 app =Flask(__name__)
 app.json.ensure_ascii = False
 app.json.sort_keys = False
+
+#数据库配置
+app.secret_key = 'genshin_impact_nb' # 用于加密 Session
+current_dir=os.path.dirname(os.path.abspath(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(current_dir, "campus_social.db")}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# 定义账号模型
+class Account(db.Model):
+    __tablename__ = 'accounts'
+    uid = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True) # 加上索引加速登录查询
+    password_hash = db.Column(db.String(255), nullable=False)
+
+# 初始化数据库表
+with app.app_context():
+    db.create_all()
 
 print("Loading model...")       #加载user_embeddings.pt文件(好像没啥用，在step3_recommend.py里也加载了一次，暂时先放在这里，后续可以优化掉)   
 try:
@@ -34,6 +55,31 @@ try:
             print(f"Loaded user info for {len(user_info_map)} users.")
 except Exception as e:
     print(f"Error loading user info: {e}")
+
+# 获取 users.csv 中最大的 uid，作为下一个 uid 的基准
+next_uid = 1001  # 默认从 1001 开始（假设有 1000 条数据）
+try:
+    with open(users_csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                uid = int(row.get('uid', 0))
+                if uid >= next_uid:
+                    next_uid = uid + 1
+            except (ValueError, TypeError):
+                continue
+except UnicodeDecodeError:
+    with open(users_csv_path, 'r', encoding='gbk') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                uid = int(row.get('uid', 0))
+                if uid >= next_uid:
+                    next_uid = uid + 1
+            except (ValueError, TypeError):
+                continue
+
+print(f"下一个 uid 将从: {next_uid} 开始")
 
 # 加载社交网络数据 (来自 step3_recommend.py)
 follow_dict = step3_recommend.follow_dict
@@ -282,7 +328,97 @@ def get_social_report():
         "distribution": distribution,
         "advice": advice
     })
+#后端注册接口
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    data=request.get_json()
+    if not data:
+        return jsonify({"error": "Missing JSON body"}), 400
+    username=data.get('username')
+    password=data.get('password')
 
+    info = data.get('info', '性别:未知,年级:未知,专业:未知,爱好:无,标签:萌新')
+    if not username or not password:
+        return jsonify({"status": "error", "message": "用户名和密码不能为空"}), 400
+    
+    # 1. 检查数据库中是否已存在该用户名
+    if Account.query.filter_by(username=username).first():
+        return jsonify({"status": "error", "message": "用户名已存在"}), 409
+    
+    try:
+        # 使用全局 next_uid（需声明为 global）
+        global next_uid
+        new_uid = next_uid
+        next_uid += 1
+
+        hashed_pw=generate_password_hash(password)
+        new_account = Account(uid=new_uid, username=username, password_hash=hashed_pw)
+        db.session.add(new_account)
+        db.session.commit()
+
+        with open(users_csv_path, mode='a', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([new_uid, info])
+
+        user_info_map[new_uid] = info
+
+        return jsonify({
+            "status": "success",
+            "message": "注册成功",
+            "data": {"uid": new_uid, "username": username}
+        }), 201
+
+    except Exception as e:
+        db.session.rollback() # 发生异常时回滚数据库操作
+        return jsonify({"status": "error", "message": f"注册失败: {str(e)}"}), 500
+
+#后端登录接口
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "Missing JSON body"}), 400
+
+    username = data.get('username')
+    password = data.get('password')
+
+    # 从数据库检索用户
+    account = Account.query.filter_by(username=username).first()
+
+    if not account or not check_password_hash(account.password_hash, password):
+        return jsonify({"status": "error", "message": "用户名或密码错误"}), 401
+
+    # 写入 Session
+    session['uid'] = account.uid
+    session['username'] = account.username
+
+    return jsonify({
+        "status": "success", 
+        "message": "登录成功", 
+        "data": {
+            "uid": account.uid,
+            "username": account.username
+        }
+    }), 200
+#后端登出接口
+@app.route('/api/auth/logout', methods=['POST'])
+def api_logout():
+    session.clear()
+    return jsonify({"status": "success", "message": "已退出登录"}), 200
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_current_user():
+    """获取当前登录会话的状态，供前端校验"""
+    if 'uid' in session:
+        return jsonify({
+            "status": "success",
+            "logged_in": True, 
+            "data": {
+                "uid": session['uid'], 
+                "username": session['username']
+            }
+        }), 200
+    return jsonify({"status": "success", "logged_in": False}), 200
     
 
 if __name__ == "__main__":
