@@ -8,6 +8,7 @@ from step3_recommend import COMMUNITY_RULES
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import csv
+from t_plus_1_scheduler import run_pipeline
 
 
 app =Flask(__name__)
@@ -27,6 +28,12 @@ class Account(db.Model):
     uid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True) # 加上索引加速登录查询
     password_hash = db.Column(db.String(255), nullable=False)
+
+# 定义用户信息模型
+class UserInfo(db.Model):
+    __tablename__ = 'users'
+    uid = db.Column(db.Integer, primary_key=True)
+    info = db.Column(db.Text, nullable=False)
 
 # 初始化数据库表
 with app.app_context():
@@ -334,17 +341,29 @@ def api_register():
     data=request.get_json()
     if not data:
         return jsonify({"error": "Missing JSON body"}), 400
+
     username=data.get('username')
     password=data.get('password')
 
-    info = data.get('info', '性别:未知,年级:未知,专业:未知,爱好:无,标签:萌新')
+    # 支持分别接收字段或整体 info
+    if 'info' in data:
+        info = data.get('info')
+    else:
+        # 从各个字段拼接 info
+        gender = data.get('gender', '未知')
+        grade = data.get('grade', '未知')
+        major = data.get('major', '未知')
+        hobbies = data.get('hobbies', '无')
+        tags = data.get('tags', '萌新')
+        info = f"性别:{gender},年级:{grade},专业:{major},爱好:{hobbies},标签:{tags}"
+
     if not username or not password:
         return jsonify({"status": "error", "message": "用户名和密码不能为空"}), 400
-    
+
     # 1. 检查数据库中是否已存在该用户名
     if Account.query.filter_by(username=username).first():
         return jsonify({"status": "error", "message": "用户名已存在"}), 409
-    
+
     try:
         # 使用全局 next_uid（需声明为 global）
         global next_uid
@@ -353,9 +372,13 @@ def api_register():
 
         hashed_pw=generate_password_hash(password)
         new_account = Account(uid=new_uid, username=username, password_hash=hashed_pw)
+        new_user_info = UserInfo(uid=new_uid, info=info)
+
         db.session.add(new_account)
+        db.session.add(new_user_info)
         db.session.commit()
 
+        # 同时写入 users.csv 保持兼容
         with open(users_csv_path, mode='a', encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([new_uid, info])
@@ -365,7 +388,7 @@ def api_register():
         return jsonify({
             "status": "success",
             "message": "注册成功",
-            "data": {"uid": new_uid, "username": username}
+            "data": {"uid": new_uid, "username": username, "info": info}
         }), 201
 
     except Exception as e:
@@ -419,7 +442,18 @@ def api_current_user():
             }
         }), 200
     return jsonify({"status": "success", "logged_in": False}), 200
-    
+
+#T+1动态图模型重训-Loihan-注——只实现了手动重新训练，还没有定时重新训练的功能。重新训练的脚本是t_plus_1_scheduler.py
+@app.route('/api/admin/retrain', methods=['POST'])
+def admin_retrain():
+    """答辩用，一键触发T+1动态图模型重训"""
+    result = run_pipeline()
+    if result['status'] == 'success':
+        # 训练完成后，强制内存重新加载最新的 embedding 向量
+        import torch
+        step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
