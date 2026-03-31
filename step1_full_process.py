@@ -11,7 +11,7 @@ MAJORS =["计算机","新闻","会计","美术","通信","医学","法学","土�
 INTERESTS =["绘画","编程","动漫","足球","羽毛球","音乐","天文","围棋","缝纫","骑行","剪纸","种植","机械","舞蹈","跑步"]
 LABELS =["社恐星人", "社交牛逼症", "社交普通型", "熬夜的神", "早睡早起", 
           "作息规律", "高冷", "可爱", "温和", "吃货", "宅属性", 
-          "镇圈大佬", "段子手", "技术大牛", "运动达人"]
+          "镇圈大佬", "段子手", "技术大牛", "运动达人"]#标签
 
 map_g, map_gr = {k:v for v,k in enumerate(GENDERS)}, {k:v for v,k in enumerate(GRADES)}
 map_m, map_i = {k:v for v,k in enumerate(MAJORS)}, {k:v for v,k in enumerate(INTERESTS)}
