@@ -8,6 +8,7 @@ from step3_recommend import COMMUNITY_RULES
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import csv
+from t_plus_1_scheduler import run_pipeline
 
 
 app =Flask(__name__)
@@ -441,7 +442,18 @@ def api_current_user():
             }
         }), 200
     return jsonify({"status": "success", "logged_in": False}), 200
-    
+
+#T+1动态图模型重训-Loihan-注——只实现了手动重新训练，还没有定时重新训练的功能。重新训练的脚本是t_plus_1_scheduler.py
+@app.route('/api/admin/retrain', methods=['POST'])
+def admin_retrain():
+    """答辩用，一键触发T+1动态图模型重训"""
+    result = run_pipeline()
+    if result['status'] == 'success':
+        # 训练完成后，强制内存重新加载最新的 embedding 向量
+        import torch
+        step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
