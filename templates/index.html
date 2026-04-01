@@ -9,162 +9,149 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .font-serif-display { font-family: 'Playfair Display', Georgia, serif; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: #0a0a14; }
+        .font-serif { font-family: 'Playfair Display', Georgia, serif; }
+
+        /* ── 背景 ── */
         .hero-bg {
             background-image: url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1600&q=80&fm=jpg');
-            background-size: cover;
-            background-position: center 40%;
+            background-size: cover; background-position: center 40%;
         }
-        .hero-overlay-top {
-            background: linear-gradient(to bottom, rgba(10,10,20,0.55) 0%, rgba(10,10,20,0.2) 60%, transparent 100%);
+        .overlay-top { background: linear-gradient(to bottom, rgba(5,5,15,0.72) 0%, rgba(5,5,15,0.35) 55%, transparent 100%); }
+        .overlay-bottom { background: linear-gradient(to top, #faf9f7 0%, rgba(250,249,247,0.7) 25%, transparent 100%); }
+
+        /* ── 路由页面容器 ── */
+        .page {
+            position: fixed; inset: 0; overflow-y: auto;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.42s cubic-bezier(.4,0,.2,1), transform 0.42s cubic-bezier(.4,0,.2,1);
+            transform: translateY(12px);
+            will-change: opacity, transform;
         }
-        .hero-overlay-bottom {
-            background: linear-gradient(to top, #faf9f7 0%, rgba(250,249,247,0.85) 30%, transparent 100%);
+        .page.active {
+            opacity: 1; pointer-events: auto; transform: translateY(0);
         }
-        .glass {
-            background: rgba(255,255,255,0.18);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255,255,255,0.35);
-        }
-        .glass-dark {
-            background: rgba(0,0,0,0.18);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.15);
-        }
+
+        /* ── 玻璃效果 ── */
+        .glass { background: rgba(255,255,255,0.13); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,0.28); }
+        .glass-card { background: rgba(15,12,8,0.45); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px); border: 1px solid rgba(255,255,255,0.16); box-shadow: 0 24px 64px rgba(0,0,0,0.45); }
+        .glass-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #fff; transition: border-color .2s, background .2s; }
+        .glass-input::placeholder { color: rgba(255,255,255,0.35); }
+        .glass-input:focus { outline: none; background: rgba(255,255,255,0.13); border-color: rgba(251,191,36,0.55); }
+
+        /* ── 胶囊按钮 Glow ── */
+        .btn-glow { transition: transform .28s ease, box-shadow .28s ease; }
+        .btn-glow:hover { transform: scale(1.07); box-shadow: 0 0 36px rgba(251,191,36,0.5), 0 0 12px rgba(255,255,255,0.15); }
+
+        /* ── Auth Tab ── */
+        .auth-tab { transition: background .2s, color .2s; color: rgba(255,255,255,0.45); }
+        .auth-tab.on { background: rgba(255,255,255,0.18); color: #fff; }
+
+        /* ── Form fade ── */
+        .form-panel { transition: opacity .25s ease, transform .25s ease; }
+        .form-panel.hidden-form { opacity: 0; pointer-events: none; position: absolute; transform: translateX(8px); }
+
+        /* ── Dashboard ── */
+        .section-bg { background: #faf9f7; }
+        .card-warm { background: #fff; border: 1px solid #ede8e0; }
+        .tag-warm { background: #f5f0e8; color: #7a5c38; }
+        .tag-accent { background: #fdf3e3; color: #92714a; }
+        .tab-active { border-bottom: 2px solid #92714a; color: #92714a; }
+        @keyframes pulse-subtle { 0%,100%{opacity:1} 50%{opacity:.5} }
+        .loading-pulse { animation: pulse-subtle 2s ease-in-out infinite; }
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-track { background: #f3f0eb; border-radius: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #d6cfc4; border-radius: 4px; }
-        .tab-active { border-bottom: 2px solid #92714a; color: #92714a; }
-        @keyframes pulse-subtle { 0%,100%{opacity:1} 50%{opacity:0.5} }
-        .loading-pulse { animation: pulse-subtle 2s ease-in-out infinite; }
-        .section-bg { background-color: #faf9f7; }
-        .card-warm { background: #fff; border: 1px solid #ede8e0; }
-        .btn-primary { background: #2d2416; color: #fff; }
-        .btn-primary:hover { background: #3d3020; }
-        .tag-warm { background: #f5f0e8; color: #7a5c38; }
-        .tag-accent { background: #fdf3e3; color: #92714a; }
-
-        /* ── 页面层级过渡动画 ── */
-        .view { transition: opacity 0.45s ease, transform 0.45s ease; }
-        .view-hidden { opacity: 0; pointer-events: none; transform: scale(0.97); }
-        .view-visible { opacity: 1; pointer-events: auto; transform: scale(1); }
-
-        /* 胶囊按钮 Glow */
-        .btn-glow {
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
-        }
-        .btn-glow:hover {
-            transform: scale(1.06);
-            box-shadow: 0 0 32px rgba(255,200,100,0.45), 0 0 8px rgba(255,255,255,0.2);
-        }
-
-        /* 玻璃卡片 Auth */
-        .glass-card {
-            background: rgba(255,255,255,0.10);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid rgba(255,255,255,0.22);
-            box-shadow: 0 8px 48px rgba(0,0,0,0.25);
-        }
-        /* Auth Tab toggle */
-        .auth-tab-active {
-            background: rgba(255,255,255,0.20);
-            color: #fff;
-        }
-        /* 半透明输入框 */
-        .glass-input {
-            background: rgba(255,255,255,0.10);
-            border: 1px solid rgba(255,255,255,0.22);
-            color: #fff;
-            transition: border-color 0.2s, background 0.2s;
-        }
-        .glass-input::placeholder { color: rgba(255,255,255,0.4); }
-        .glass-input:focus {
-            outline: none;
-            background: rgba(255,255,255,0.16);
-            border-color: rgba(255,200,100,0.6);
-        }
     </style>
 </head>
-<body class="text-gray-900">
+<body>
 
-<!-- Hero 区域 -->
-<section class="hero-bg relative min-h-screen flex flex-col">
-    <!-- 顶部遮罩 -->
-    <div class="hero-overlay-top absolute inset-0 pointer-events-none"></div>
-    <!-- 底部羽化 -->
-    <div class="hero-overlay-bottom absolute inset-0 pointer-events-none"></div>
+<!-- ══════════════════════════════════════════
+     PAGE 1: LANDING  /
+══════════════════════════════════════════ -->
+<div id="page-landing" class="page hero-bg">
+    <div class="overlay-top absolute inset-0 pointer-events-none"></div>
+    <div class="overlay-bottom absolute inset-0 pointer-events-none"></div>
 
     <!-- 导航 -->
     <nav class="relative z-10 flex items-center justify-between px-8 md:px-16 pt-8">
-        <span class="font-serif-display text-white text-xl font-bold tracking-wide drop-shadow">推荐交友</span>
-        <div id="userInfo" class="hidden items-center gap-3">
-            <span class="text-white/80 text-sm">你好，<span id="headerUsername" class="font-semibold text-white"></span></span>
-            <span class="text-white/50 text-xs font-mono">学号 <span id="headerUid" class="text-amber-300"></span></span>
-            <button onclick="doLogout()" class="glass-dark text-white/80 px-4 py-1.5 rounded-full text-xs hover:bg-white/20 transition">退出</button>
-        </div>
+        <span class="font-serif text-white text-xl font-bold tracking-wide" style="text-shadow:0 2px 12px rgba(0,0,0,0.6)">推荐交友</span>
     </nav>
 
-    <!-- Hero 主内容容器（绝对居中，承载两个视图层） -->
-    <div class="relative z-10 flex-1 flex items-center justify-center px-6 pb-24 pt-8">
+    <!-- 主内容 -->
+    <div class="relative z-10 min-h-screen flex flex-col items-center justify-center text-center px-6 pb-40 pt-8">
+        <p class="text-white/60 text-sm tracking-[0.2em] uppercase mb-6" style="text-shadow:0 1px 8px rgba(0,0,0,0.7)">Campus Social · AI Powered</p>
+        <h1 class="font-serif italic text-white font-bold leading-tight mb-6"
+            style="font-size:clamp(2.8rem,8vw,6rem); text-shadow:0 4px 24px rgba(0,0,0,0.65)">
+            miss you,<br>but don't<br>miss you.
+        </h1>
+        <p class="text-white/70 text-base md:text-lg mb-12 max-w-xs leading-relaxed" style="text-shadow:0 2px 10px rgba(0,0,0,0.6)">
+            在这里，遇见和你频率相同的人。
+        </p>
+        <button onclick="Router.go('/auth')"
+            class="btn-glow glass rounded-full px-10 py-4 text-white font-semibold text-base tracking-wide shadow-xl">
+            遇见新的朋友
+        </button>
+        <p class="text-white/30 text-xs mt-8" style="text-shadow:0 1px 4px rgba(0,0,0,0.5)">
+            已有 <span id="heroUserCount">—</span> 位同学加入
+        </p>
+    </div>
+</div>
 
-        <!-- ① Landing View -->
-        <div id="landingView" class="view view-visible flex flex-col items-center text-center absolute w-full max-w-2xl px-6">
-            <h1 class="font-serif-display italic text-white text-5xl md:text-7xl lg:text-8xl font-bold leading-tight drop-shadow-lg mb-5">
-                miss you,<br>but don't miss you.
-            </h1>
-            <p class="text-white/65 text-base md:text-lg mb-12 max-w-sm leading-relaxed">
-                在这里，遇见和你频率相同的人。
-            </p>
-            <!-- 胶囊按钮 -->
-            <button onclick="showAuthView()" class="btn-glow glass rounded-full px-10 py-4 text-white font-semibold text-base tracking-wide shadow-lg">
-                遇见新的朋友
-            </button>
-            <p class="text-white/30 text-xs mt-8">已有 <span id="heroUserCount">—</span> 位同学加入</p>
-        </div>
+<!-- ══════════════════════════════════════════
+     PAGE 2: AUTH  /auth
+══════════════════════════════════════════ -->
+<div id="page-auth" class="page hero-bg">
+    <div class="overlay-top absolute inset-0 pointer-events-none"></div>
+    <!-- auth 页不需要底部羽化，保持全暗 -->
+    <div style="background:linear-gradient(to top,rgba(5,5,15,0.6) 0%,transparent 60%)" class="absolute inset-0 pointer-events-none"></div>
 
-        <!-- ② Auth View -->
-        <div id="authView" class="view view-hidden flex flex-col items-center w-full max-w-sm px-4">
-            <!-- 玻璃卡片 -->
-            <div class="glass-card rounded-3xl w-full overflow-hidden">
-                <!-- 卡片顶部：返回 + Tab -->
-                <div class="flex items-center px-5 pt-5 pb-0 gap-3">
-                    <button onclick="showLandingView()" class="text-white/50 hover:text-white transition p-1 rounded-lg hover:bg-white/10 shrink-0" title="返回">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    </button>
-                    <!-- Tab Toggle -->
-                    <div class="flex-1 flex bg-white/10 rounded-full p-1 gap-1">
-                        <button id="authTab-login" onclick="switchAuthTab('login')"
-                            class="auth-tab-active flex-1 py-1.5 rounded-full text-xs font-semibold transition text-center">
-                            登录
-                        </button>
-                        <button id="authTab-register" onclick="switchAuthTab('register')"
-                            class="flex-1 py-1.5 rounded-full text-xs font-semibold transition text-center text-white/50">
-                            注册
-                        </button>
-                    </div>
-                </div>
+    <!-- 导航 -->
+    <nav class="relative z-10 flex items-center px-8 md:px-16 pt-8">
+        <button onclick="Router.go('/')" class="flex items-center gap-2 text-white/60 hover:text-white transition text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            返回
+        </button>
+        <span class="font-serif text-white/80 text-lg font-bold ml-6" style="text-shadow:0 2px 8px rgba(0,0,0,0.5)">推荐交友</span>
+    </nav>
+
+    <!-- 居中卡片 -->
+    <div class="relative z-10 min-h-screen flex items-center justify-center px-6 pb-16 pt-4">
+        <div class="glass-card rounded-3xl w-full max-w-sm overflow-hidden">
+
+            <!-- Tab Toggle -->
+            <div class="flex p-4 pb-0 gap-2">
+                <button id="authTab-login" onclick="switchAuthTab('login')"
+                    class="auth-tab on flex-1 py-2 rounded-xl text-sm font-semibold text-center">
+                    Log in
+                </button>
+                <button id="authTab-register" onclick="switchAuthTab('register')"
+                    class="auth-tab flex-1 py-2 rounded-xl text-sm font-semibold text-center">
+                    Sign up
+                </button>
+            </div>
+
+            <!-- 表单区（相对定位容器，两个面板叠放） -->
+            <div class="relative px-6 pt-5 pb-6" style="min-height:260px">
 
                 <!-- 登录表单 -->
-                <div id="authForm-login" class="p-6 space-y-3">
-                    <p class="text-white/40 text-xs text-center">登录后可使用个人学号快速查询</p>
+                <div id="authForm-login" class="form-panel space-y-3">
+                    <p class="text-white/35 text-xs text-center pb-1">登录后可使用个人学号快速查询</p>
                     <input id="login-username" type="text" placeholder="用户名"
                         class="glass-input w-full px-4 py-3 rounded-xl text-sm">
                     <input id="login-password" type="password" placeholder="密码"
                         class="glass-input w-full px-4 py-3 rounded-xl text-sm">
                     <p id="login-error" class="text-xs text-red-300 hidden pt-1"></p>
                     <button onclick="doLogin()"
-                        class="w-full mt-1 bg-white/90 hover:bg-white text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">
+                        class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">
                         Log in
                     </button>
                 </div>
 
                 <!-- 注册表单 -->
-                <div id="authForm-register" class="p-6 space-y-3 hidden">
-                    <p class="text-white/40 text-xs text-center">注册后系统将为你分配专属学号</p>
+                <div id="authForm-register" class="form-panel hidden-form space-y-3">
+                    <p class="text-white/35 text-xs text-center pb-1">注册后系统将为你分配专属学号</p>
                     <input id="reg-username" type="text" placeholder="用户名"
                         class="glass-input w-full px-4 py-3 rounded-xl text-sm">
                     <input id="reg-password" type="password" placeholder="密码"
@@ -174,103 +161,89 @@
                     <p id="reg-error" class="text-xs text-red-300 hidden pt-1"></p>
                     <p id="reg-success" class="text-xs text-emerald-300 hidden pt-1"></p>
                     <button onclick="doRegister()"
-                        class="w-full mt-1 bg-white/90 hover:bg-white text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">
+                        class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">
                         Sign up
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
 
-            <!-- 已登录后的快速入口（登录成功后显示） -->
-            <div id="loggedInHero" class="hidden mt-6 text-center">
-                <p class="text-white/60 text-sm mb-3">欢迎回来，<span id="heroUsername" class="text-white font-semibold"></span> 👋</p>
-                <div class="glass rounded-2xl p-2 flex gap-2 w-full max-w-xs">
-                    <input type="number" id="searchInput" placeholder="输入学号开始分析"
-                        class="flex-1 bg-transparent text-white placeholder-white/40 px-4 py-2.5 outline-none text-sm min-w-0">
-                    <button onclick="searchUser()" class="bg-white text-stone-800 font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-amber-50 transition shrink-0">
-                        →
+<!-- ══════════════════════════════════════════
+     PAGE 3: DASHBOARD  /dashboard
+══════════════════════════════════════════ -->
+<div id="page-dashboard" class="page section-bg" style="overflow-y:auto">
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-white border-b border-stone-100 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+            <span class="font-serif text-stone-800 text-lg font-bold">推荐交友</span>
+            <div class="flex items-center gap-3">
+                <!-- 搜索框 -->
+                <div class="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
+                    <input type="number" id="searchInput" placeholder="输入学号分析"
+                        class="bg-transparent text-sm outline-none w-36 text-stone-700 placeholder-stone-400">
+                    <button onclick="searchUser()" class="text-stone-400 hover:text-amber-600 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                     </button>
+                </div>
+                <!-- 用户信息 -->
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm" id="avatarInitial">?</div>
+                    <div class="hidden sm:block">
+                        <p class="text-xs font-semibold text-stone-700" id="dashUsername">—</p>
+                        <p class="text-[10px] text-stone-400">学号 <span id="dashUid" class="font-mono text-amber-600">—</span></p>
+                    </div>
+                    <button onclick="doLogout()" class="ml-1 text-xs text-stone-400 hover:text-stone-600 border border-stone-200 px-3 py-1.5 rounded-lg transition">退出</button>
                 </div>
             </div>
         </div>
+    </header>
 
-    </div>
-</section>
+    <main class="max-w-6xl mx-auto px-6 py-8">
 
-<!-- How it works 区域 -->
-<section class="section-bg py-20 px-6">
-    <div class="max-w-4xl mx-auto">
-        <h2 class="font-serif-display text-3xl md:text-4xl font-bold text-stone-800 text-center mb-3">How it works</h2>
-        <p class="text-stone-400 text-center text-sm mb-14">三步找到你的同频好友</p>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div class="text-center">
-                <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4 text-2xl">🎓</div>
-                <h3 class="font-semibold text-stone-700 mb-2">输入学号</h3>
-                <p class="text-stone-400 text-sm leading-relaxed">用你的校园学号进入系统，系统会读取你的社交画像</p>
-            </div>
-            <div class="text-center">
-                <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4 text-2xl">🤖</div>
-                <h3 class="font-semibold text-stone-700 mb-2">AI 智能匹配</h3>
-                <p class="text-stone-400 text-sm leading-relaxed">基于图神经网络分析你的社交关系，找到最契合的潜在好友</p>
-            </div>
-            <div class="text-center">
-                <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4 text-2xl">✨</div>
-                <h3 class="font-semibold text-stone-700 mb-2">探索圈层</h3>
-                <p class="text-stone-400 text-sm leading-relaxed">查看社交雷达报告，了解你在校园网络中的位置与影响力</p>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- 全站统计 -->
-<section class="section-bg pb-8 px-6">
-    <div class="max-w-5xl mx-auto">
-        <div id="globalStats" class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <div class="col-span-2 lg:col-span-5 card-warm p-6 rounded-2xl flex items-center justify-center text-stone-400 text-sm loading-pulse">
+        <!-- 全站统计 -->
+        <div id="globalStats" class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div class="col-span-2 lg:col-span-5 card-warm p-5 rounded-2xl flex items-center justify-center text-stone-400 text-sm loading-pulse">
                 正在同步全站社交网络数据...
             </div>
         </div>
-    </div>
-</section>
 
-<!-- 分析结果区域 -->
-<section class="section-bg py-8 px-6">
-    <div class="max-w-5xl mx-auto">
+        <!-- 结果区 -->
         <div id="resultsArea" class="hidden grid grid-cols-1 xl:grid-cols-4 gap-8">
+
             <!-- 左侧配置 + 诊断 -->
             <aside class="xl:col-span-1 space-y-6">
-                <div class="card-warm p-6 rounded-2xl">
-                    <h3 class="text-sm font-semibold text-stone-700 mb-4 flex items-center gap-2">
-                        <span class="text-base">⚙️</span> 推荐配置
-                    </h3>
+                <div class="card-warm p-5 rounded-2xl">
+                    <h3 class="text-sm font-semibold text-stone-700 mb-4">⚙️ 推荐配置</h3>
                     <div class="space-y-4 text-sm">
                         <div>
-                            <label class="block text-stone-500 mb-2 text-xs font-medium">推荐模式</label>
-                            <div class="grid grid-cols-2 gap-1.5 bg-stone-50 p-1 rounded-xl border border-stone-100">
-                                <button id="mode-social" onclick="setMode('social')" class="px-2 py-2 rounded-lg transition text-center text-xs tab-active bg-white shadow-sm font-medium">社交优化</button>
-                                <button id="mode-gnn" onclick="setMode('gnn')" class="px-2 py-2 rounded-lg transition text-center text-xs text-stone-500">纯相似度</button>
+                            <label class="block text-stone-400 mb-2 text-xs">推荐模式</label>
+                            <div class="grid grid-cols-2 gap-1 bg-stone-50 p-1 rounded-xl border border-stone-100">
+                                <button id="mode-social" onclick="setMode('social')" class="px-2 py-2 rounded-lg text-xs font-medium transition tab-active bg-white shadow-sm">社交优化</button>
+                                <button id="mode-gnn" onclick="setMode('gnn')" class="px-2 py-2 rounded-lg text-xs font-medium transition text-stone-500">纯相似度</button>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-stone-500 mb-2 text-xs font-medium">指定圈层</label>
-                            <select id="communitySelect" class="w-full px-3 py-2 border border-stone-200 rounded-xl bg-white text-xs focus:ring-1 focus:ring-amber-200 outline-none text-stone-600">
+                            <label class="block text-stone-400 mb-2 text-xs">指定圈层</label>
+                            <select id="communitySelect" class="w-full px-3 py-2 border border-stone-200 rounded-xl bg-white text-xs text-stone-600 outline-none focus:ring-1 focus:ring-amber-200">
                                 <option value="">不限社区</option>
                             </select>
                         </div>
-                        <button onclick="applyFilters()" class="w-full bg-stone-50 text-stone-600 hover:bg-amber-50 hover:text-amber-800 border border-stone-200 px-4 py-2.5 rounded-xl font-medium transition text-xs">
+                        <button onclick="applyFilters()" class="w-full bg-stone-50 hover:bg-amber-50 hover:text-amber-800 border border-stone-200 text-stone-600 px-4 py-2.5 rounded-xl text-xs font-medium transition">
                             重新生成推荐
                         </button>
                     </div>
                 </div>
 
-                <div id="diagnosticPanel" class="card-warm p-6 rounded-2xl hidden">
-                    <h3 class="text-sm font-semibold text-stone-700 mb-4 flex items-center gap-2">
-                        <span class="text-base">📡</span> 社交雷达报告
-                    </h3>
+                <div id="diagnosticPanel" class="card-warm p-5 rounded-2xl hidden">
+                    <h3 class="text-sm font-semibold text-stone-700 mb-4">📡 社交雷达报告</h3>
                     <div class="flex items-center gap-3 mb-4 p-3 bg-amber-50 rounded-xl">
-                        <div id="diagTitle" class="font-serif-display font-bold text-2xl text-amber-700 shrink-0"></div>
+                        <div id="diagTitle" class="font-serif font-bold text-2xl text-amber-700 shrink-0"></div>
                         <p id="diagDesc" class="text-xs text-stone-500 leading-relaxed"></p>
                     </div>
-                    <div class="mb-4 h-64 flex items-center justify-center relative">
+                    <div class="mb-3 h-60 flex items-center justify-center relative">
                         <canvas id="communityChart"></canvas>
                         <div class="absolute text-center pointer-events-none">
                             <div class="text-2xl font-extrabold text-stone-700" id="diagConnCount">0</div>
@@ -286,21 +259,21 @@
 
             <!-- 右侧主内容 -->
             <section class="xl:col-span-3 space-y-6">
-                <div class="rounded-2xl overflow-hidden" style="background: linear-gradient(135deg, #2d2416 0%, #5c3d1e 100%);">
+                <div class="rounded-2xl overflow-hidden" style="background:linear-gradient(135deg,#2d2416,#5c3d1e)">
                     <div class="p-6 flex items-center gap-4">
                         <div class="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-                            <svg class="w-7 h-7 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zm-4 7a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                            <svg class="w-7 h-7 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zm-4 7a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         </div>
                         <div>
-                            <p class="text-white/50 text-xs mb-1">正在分析</p>
-                            <h2 class="font-serif-display text-2xl font-bold text-white">学号 #<span id="displayUserId"></span></h2>
+                            <p class="text-white/40 text-xs mb-1">正在分析</p>
+                            <h2 class="font-serif text-2xl font-bold text-white">学号 #<span id="displayUserId"></span></h2>
                             <div id="displayUserInfo" class="flex flex-wrap gap-1.5 mt-2"></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card-warm rounded-2xl overflow-hidden">
-                    <div class="border-b border-stone-100 flex gap-0 text-sm font-medium">
+                    <div class="border-b border-stone-100 flex text-sm font-medium">
                         <button onclick="showTab('recommended')" id="tab-recommended" class="px-6 py-4 transition text-stone-400 hover:text-stone-700 tab-active">✨ AI 推荐</button>
                         <button onclick="showTab('following')" id="tab-following" class="px-6 py-4 transition text-stone-400 hover:text-stone-700">关注 <span id="countFollowing" class="ml-1 text-xs opacity-50"></span></button>
                         <button onclick="showTab('followers')" id="tab-followers" class="px-6 py-4 transition text-stone-400 hover:text-stone-700">粉丝 <span id="countFollowers" class="ml-1 text-xs opacity-50"></span></button>
@@ -321,8 +294,8 @@
         <!-- 空状态 -->
         <div id="emptyState" class="flex flex-col items-center justify-center py-24 text-stone-300">
             <div class="text-6xl mb-4">🌅</div>
-            <p class="text-lg font-medium text-stone-500">在上方输入学号，开启探索</p>
-            <p class="text-sm mt-1">AI 将为你生成专属的社交分析报告</p>
+            <p class="text-lg font-medium text-stone-500">在顶部输入学号，开启探索</p>
+            <p class="text-sm mt-1 text-stone-400">AI 将为你生成专属的社交分析报告</p>
         </div>
 
         <!-- 错误状态 -->
@@ -330,372 +303,351 @@
             <div class="w-16 h-16 bg-red-50 text-red-400 rounded-full flex items-center justify-center mb-4 text-2xl">⚠️</div>
             <p class="text-lg font-semibold text-stone-700 mb-2">查询异常</p>
             <p class="text-sm text-stone-400 mb-6" id="errorMessage">该学号不存在，请检查后重试</p>
-            <button onclick="document.getElementById('searchInput').focus();" class="px-5 py-2.5 bg-stone-100 text-stone-600 rounded-xl hover:bg-stone-200 transition text-sm font-medium">
-                重新输入学号
-            </button>
+            <button onclick="document.getElementById('searchInput').focus()" class="px-5 py-2.5 bg-stone-100 text-stone-600 rounded-xl hover:bg-stone-200 transition text-sm font-medium">重新输入学号</button>
         </div>
-    </div>
-</section>
+    </main>
 
-<footer class="section-bg border-t border-stone-100 py-8 text-center text-stone-300 text-xs">
-    推荐交友 · 基于图神经网络的校园社交推荐系统
-</footer>
+    <footer class="border-t border-stone-100 py-6 text-center text-stone-300 text-xs">
+        推荐交友 · 基于图神经网络的校园社交推荐系统
+    </footer>
+</div>
 
 <script>
-    let currentUserId = null;
-    let currentMode = 'social';
-    let myChart = null;
+// ══════════════════════════════════════════
+//  状态管理
+// ══════════════════════════════════════════
+const State = {
+    user: null,   // { uid, username } | null
+    setUser(u) {
+        this.user = u;
+        // 同步 dashboard 顶部信息
+        if (u) {
+            document.getElementById('dashUsername').textContent = u.username;
+            document.getElementById('dashUid').textContent = u.uid;
+            document.getElementById('avatarInitial').textContent = u.username.charAt(0).toUpperCase();
+            document.getElementById('searchInput').value = u.uid;
+        }
+    }
+};
 
-    const colors = [
-        'rgba(180,130,70,0.75)',
-        'rgba(100,160,120,0.75)',
-        'rgba(200,160,80,0.75)',
-        'rgba(160,100,80,0.75)',
-        'rgba(100,140,180,0.75)',
-        'rgba(160,120,180,0.75)',
-        'rgba(80,160,160,0.75)'
-    ];
+// ══════════════════════════════════════════
+//  路由
+// ══════════════════════════════════════════
+const PAGES = { '/': 'page-landing', '/auth': 'page-auth', '/dashboard': 'page-dashboard' };
+let _currentPage = null;
 
-    // 页面初始化 (已移至底部统一处理)
-    // window.onload 在文件底部定义
+const Router = {
+    go(path, replace = false) {
+        // 保护路由：未登录不能进 dashboard
+        if (path === '/dashboard' && !State.user) { path = '/auth'; }
+        // 已登录不需要再看 auth
+        if (path === '/auth' && State.user) { path = '/dashboard'; }
 
-    async function fetchStats() {
-        try {
-            const res = await fetch('/social/stats');
-            const data = await res.json();
-            document.getElementById('heroUserCount').textContent = data.total_users.toLocaleString();
-            const container = document.getElementById('globalStats');
-            const stats = [
-                { label: '注册学生', value: data.total_users, icon: '🎓' },
-                { label: '社交连边', value: data.total_follows, icon: '🔗' },
-                { label: '平均关注数', value: data.average_follows.toFixed(2), icon: '📊' },
-                { label: '最高活跃度', value: data.max_follows, icon: '🔥' },
-                { label: '网络密度', value: (data.total_follows / (data.total_users * (data.total_users - 1))).toFixed(4), icon: '🕸️' }
-            ];
-            container.innerHTML = stats.map(s => `
-                <div class="card-warm p-5 rounded-2xl flex items-center gap-3 hover:shadow-md transition">
-                    <div class="text-2xl">${s.icon}</div>
-                    <div>
-                        <div class="text-xs text-stone-400 mb-0.5">${s.label}</div>
-                        <div class="text-xl font-bold text-stone-800">${s.value}</div>
-                    </div>
+        if (replace) history.replaceState({ path }, '', path);
+        else history.pushState({ path }, '', path);
+
+        this._render(path);
+    },
+    _render(path) {
+        const targetId = PAGES[path] || PAGES['/'];
+        const targetEl = document.getElementById(targetId);
+
+        // 先让目标页就位（但不可见），再做切换
+        Object.entries(PAGES).forEach(([, id]) => {
+            const el = document.getElementById(id);
+            if (id !== targetId) {
+                el.classList.remove('active');
+            }
+        });
+
+        requestAnimationFrame(() => {
+            targetEl.classList.add('active');
+            _currentPage = targetEl;
+        });
+
+        document.title = {
+            '/': '推荐交友 · 校园社交',
+            '/auth': '登录 / 注册 · 推荐交友',
+            '/dashboard': '我的主页 · 推荐交友'
+        }[path] || '推荐交友';
+    },
+    init() {
+        window.addEventListener('popstate', e => {
+            const path = e.state?.path || '/';
+            this._render(path);
+        });
+        // 首次渲染：Flask 始终返回 /，前端根据登录状态决定
+        this._render('/');
+    }
+};
+
+// ══════════════════════════════════════════
+//  Auth Tab 切换
+// ══════════════════════════════════════════
+function switchAuthTab(tab) {
+    const isLogin = tab === 'login';
+    const loginForm = document.getElementById('authForm-login');
+    const regForm = document.getElementById('authForm-register');
+    const loginTab = document.getElementById('authTab-login');
+    const regTab = document.getElementById('authTab-register');
+
+    if (isLogin) {
+        loginForm.classList.remove('hidden-form');
+        regForm.classList.add('hidden-form');
+        loginTab.classList.add('on');
+        regTab.classList.remove('on');
+    } else {
+        regForm.classList.remove('hidden-form');
+        loginForm.classList.add('hidden-form');
+        regTab.classList.add('on');
+        loginTab.classList.remove('on');
+    }
+}
+
+// ══════════════════════════════════════════
+//  登录 / 注册 / 退出
+// ══════════════════════════════════════════
+async function doLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.classList.add('hidden');
+    if (!username || !password) { errEl.textContent = '用户名和密码不能为空'; errEl.classList.remove('hidden'); return; }
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            State.setUser(data.data);
+            Router.go('/dashboard');
+        } else { errEl.textContent = data.message || '登录失败'; errEl.classList.remove('hidden'); }
+    } catch { errEl.textContent = '网络错误，请重试'; errEl.classList.remove('hidden'); }
+}
+
+async function doRegister() {
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const info = document.getElementById('reg-info').value.trim();
+    const errEl = document.getElementById('reg-error');
+    const sucEl = document.getElementById('reg-success');
+    errEl.classList.add('hidden'); sucEl.classList.add('hidden');
+    if (!username || !password) { errEl.textContent = '用户名和密码不能为空'; errEl.classList.remove('hidden'); return; }
+    try {
+        const body = { username, password };
+        if (info) body.info = info;
+        const res = await fetch('/api/register', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            sucEl.textContent = `注册成功！学号 ${data.data.uid}，即将跳转登录...`;
+            sucEl.classList.remove('hidden');
+            setTimeout(() => switchAuthTab('login'), 1500);
+        } else { errEl.textContent = data.message || '注册失败'; errEl.classList.remove('hidden'); }
+    } catch { errEl.textContent = '网络错误，请重试'; errEl.classList.remove('hidden'); }
+}
+
+async function doLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    State.user = null;
+    Router.go('/');
+}
+
+// ══════════════════════════════════════════
+//  Dashboard 功能
+// ══════════════════════════════════════════
+let currentUserId = null, currentMode = 'social', myChart = null;
+
+const chartColors = [
+    'rgba(180,130,70,.75)', 'rgba(100,160,120,.75)', 'rgba(200,160,80,.75)',
+    'rgba(160,100,80,.75)', 'rgba(100,140,180,.75)', 'rgba(160,120,180,.75)', 'rgba(80,160,160,.75)'
+];
+
+async function fetchStats() {
+    try {
+        const res = await fetch('/social/stats');
+        const data = await res.json();
+        document.getElementById('heroUserCount').textContent = data.total_users.toLocaleString();
+        const stats = [
+            { label: '注册学生', value: data.total_users, icon: '🎓' },
+            { label: '社交连边', value: data.total_follows, icon: '🔗' },
+            { label: '平均关注数', value: data.average_follows.toFixed(2), icon: '📊' },
+            { label: '最高活跃度', value: data.max_follows, icon: '🔥' },
+            { label: '网络密度', value: (data.total_follows / (data.total_users * (data.total_users - 1))).toFixed(4), icon: '🕸️' }
+        ];
+        document.getElementById('globalStats').innerHTML = stats.map(s => `
+            <div class="card-warm p-5 rounded-2xl flex items-center gap-3 hover:shadow-md transition">
+                <div class="text-2xl">${s.icon}</div>
+                <div>
+                    <div class="text-xs text-stone-400 mb-0.5">${s.label}</div>
+                    <div class="text-xl font-bold text-stone-800">${s.value}</div>
                 </div>
-            `).join('');
-        } catch (e) { console.error("加载统计数据失败"); }
-    }
+            </div>`).join('');
+    } catch { console.error('加载统计失败'); }
+}
 
-    async function fetchCommunities() {
-        try {
-            const res = await fetch('/community');
-            const data = await res.json();
-            const select = document.getElementById('communitySelect');
-            data.communities.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c; opt.innerText = c;
-                select.appendChild(opt);
-            });
-        } catch (e) { console.error("加载社区失败"); }
-    }
-
-    function setMode(mode) {
-        currentMode = mode;
-        const base = 'px-2 py-2 rounded-lg transition text-center text-xs font-medium';
-        document.getElementById('mode-social').className = base + (mode === 'social' ? ' tab-active bg-white shadow-sm' : ' text-stone-500');
-        document.getElementById('mode-gnn').className = base + (mode === 'gnn' ? ' tab-active bg-white shadow-sm' : ' text-stone-500');
-    }
-
-    function applyFilters() { if (currentUserId) searchUser(currentUserId); }
-
-    function parseInfoTags(infoStr, isDark = false) {
-        const pairs = infoStr.split(',');
-        let basicHtml = '', hobbiesHtml = '';
-        pairs.forEach(p => {
-            const [key, value] = p.split(':');
-            if (!value) return;
-            if (key === '爱好' || key === '标签') {
-                const tags = value.split(' ').filter(t => t.trim() !== '');
-                const cls = isDark ? 'bg-white/15 text-white/80' : 'tag-warm';
-                hobbiesHtml += tags.map(t => `<span class="px-2 py-0.5 ${cls} rounded-full text-[10px] font-medium">${t}</span>`).join('');
-            } else {
-                const cls = isDark ? 'bg-white/20 text-white' : 'tag-accent';
-                basicHtml += `<span class="px-2.5 py-1 ${cls} rounded-full text-xs font-semibold">${value}</span>`;
-            }
+async function fetchCommunities() {
+    try {
+        const res = await fetch('/community');
+        const data = await res.json();
+        const sel = document.getElementById('communitySelect');
+        data.communities.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c; o.innerText = c; sel.appendChild(o);
         });
-        return { basic: basicHtml, hobbies: hobbiesHtml };
-    }
+    } catch { console.error('加载社区失败'); }
+}
 
-    async function searchUser(explicitId = null) {
-        const sid = explicitId || document.getElementById('searchInput').value;
-        if (!sid) return;
-        currentUserId = sid;
+function setMode(mode) {
+    currentMode = mode;
+    const base = 'px-2 py-2 rounded-lg text-xs font-medium transition';
+    document.getElementById('mode-social').className = base + (mode === 'social' ? ' tab-active bg-white shadow-sm' : ' text-stone-500');
+    document.getElementById('mode-gnn').className = base + (mode === 'gnn' ? ' tab-active bg-white shadow-sm' : ' text-stone-500');
+}
 
-        document.getElementById('emptyState').classList.add('hidden');
-        document.getElementById('resultsArea').classList.add('hidden');
-        document.getElementById('errorState').classList.add('hidden');
+function applyFilters() { if (currentUserId) searchUser(currentUserId); }
 
-        if (!explicitId) {
-            setMode('social');
-            document.getElementById('communitySelect').value = '';
-        }
-        const comm = document.getElementById('communitySelect').value;
-
-        try {
-            const [tuijianRes, reportRes, followingRes, followersRes] = await Promise.all([
-                fetch(`/tuijian?id=${sid}&mode=${currentMode}&community=${comm}`),
-                fetch(`/social/report?id=${sid}`),
-                fetch(`/following?id=${sid}`),
-                fetch(`/followers?id=${sid}`)
-            ]);
-
-            if (!tuijianRes.ok || !reportRes.ok) throw new Error("用户不存在");
-
-            const tuijianData = await tuijianRes.json();
-            if (tuijianData.error || !tuijianData.student_info ||
-                tuijianData.student_info === `User ${sid}` || tuijianData.student_info === `ID:${sid}`) {
-                throw new Error("用户不存在");
-            }
-
-            const reportData = await reportRes.json();
-            const followingData = await followingRes.json();
-            const followersData = await followersRes.json();
-
-            document.getElementById('displayUserId').innerText = sid;
-            const userTags = parseInfoTags(tuijianData.student_info, true);
-            document.getElementById('displayUserInfo').innerHTML = userTags.basic + userTags.hobbies;
-
-            const recContainer = document.getElementById('recommendList');
-            recContainer.innerHTML = '';
-            if (!tuijianData.recommend_friends || tuijianData.recommend_friends.length === 0) {
-                recContainer.innerHTML = `<div class="col-span-2 flex flex-col items-center py-16 text-stone-300"><div class="text-5xl mb-3">🤔</div><p class="text-sm">暂无推荐结果</p></div>`;
-            } else {
-                tuijianData.recommend_friends.forEach((info, index) => {
-                    const tags = parseInfoTags(info);
-                    recContainer.innerHTML += `
-                        <div class="p-5 rounded-xl border border-stone-100 hover:border-amber-200 hover:bg-amber-50/30 transition group cursor-pointer">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex flex-wrap gap-1.5">${tags.basic}</div>
-                                <span class="font-serif-display text-xl font-bold text-stone-200 group-hover:text-amber-400 transition">#${index + 1}</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1">${tags.hobbies}</div>
-                        </div>`;
-                });
-            }
-
-            renderRelationList('following', followingData.following);
-            document.getElementById('countFollowing').innerText = followingData.count || 0;
-            renderRelationList('followers', followersData.followers);
-            document.getElementById('countFollowers').innerText = followersData.followers_count || 0;
-
-            renderDiagnostic(reportData);
-            document.getElementById('resultsArea').classList.remove('hidden');
-            showTab('recommended');
-
-            // 滚动到结果区域
-            document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-        } catch (err) {
-            document.getElementById('errorState').classList.remove('hidden');
-            if (err.message === "用户不存在" || err.message.includes("JSON")) {
-                document.getElementById('errorMessage').innerText = `未找到学号 ${sid} 的用户，请核对后重试。`;
-            } else {
-                document.getElementById('errorMessage').innerText = "获取数据时发生异常: " + err.message;
-            }
-        }
-    }
-
-    function renderRelationList(type, list) {
-        const container = document.getElementById(`${type}List`);
-        container.innerHTML = '';
-        if (!list || list.length === 0) {
-            container.innerHTML = '<p class="text-xs text-stone-300 p-2">暂无关系</p>';
-            return;
-        }
-        list.forEach(info => {
-            const tags = parseInfoTags(info);
-            container.innerHTML += `
-                <div class="p-3 rounded-xl border border-stone-100 text-xs flex items-center gap-2 hover:bg-stone-50 transition">
-                    <div class="flex gap-1 shrink-0">${tags.basic}</div>
-                    <div class="flex flex-wrap gap-0.5">${tags.hobbies}</div>
-                </div>`;
-        });
-    }
-
-    function renderDiagnostic(data) {
-        document.getElementById('diagnosticPanel').classList.remove('hidden');
-        document.getElementById('diagTitle').innerText = data.status.title;
-        document.getElementById('diagDesc').innerText = data.status.description;
-        document.getElementById('diagConnCount').innerText = data.status.total_connections;
-        document.getElementById('diagAdvice').innerText = data.advice;
-
-        if (myChart) myChart.destroy();
-        const labels = data.distribution.map(d => d.name);
-        const values = data.distribution.map(d => d.count);
-        const ctx = document.getElementById('communityChart').getContext('2d');
-        myChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels,
-                datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#faf9f7' }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: true, position: 'right',
-                        labels: {
-                            font: { size: 9 }, padding: 8, usePointStyle: true, pointStyle: 'circle',
-                            generateLabels: chart => chart.data.labels.map((label, i) => ({
-                                text: `${label} (${chart.data.datasets[0].data[i]}人)`,
-                                fillStyle: chart.data.datasets[0].backgroundColor[i],
-                                hidden: false, index: i
-                            }))
-                        }
-                    },
-                    tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}人` } }
-                }
-            }
-        });
-    }
-
-    function showTab(tabName) {
-        ['recommended', 'following', 'followers'].forEach(t => {
-            document.getElementById(`tabContent_${t}`).classList.add('hidden');
-            document.getElementById(`tab-${t}`).classList.remove('tab-active');
-        });
-        document.getElementById(`tabContent_${tabName}`).classList.remove('hidden');
-        document.getElementById(`tab-${tabName}`).classList.add('tab-active');
-    }
-
-    // searchInput 在 Auth View 里，需要等 DOM 就绪后绑定
-    function bindSearchInput() {
-        const el = document.getElementById('searchInput');
-        if (el) el.addEventListener('keypress', e => { if (e.key === 'Enter') searchUser(); });
-    }
-
-    // ===== 页面层级切换 =====
-    function showAuthView(tab = 'login') {
-        const landing = document.getElementById('landingView');
-        const auth = document.getElementById('authView');
-        landing.classList.remove('view-visible');
-        landing.classList.add('view-hidden');
-        auth.classList.remove('view-hidden');
-        auth.classList.add('view-visible');
-        switchAuthTab(tab);
-    }
-
-    function showLandingView() {
-        const landing = document.getElementById('landingView');
-        const auth = document.getElementById('authView');
-        auth.classList.remove('view-visible');
-        auth.classList.add('view-hidden');
-        landing.classList.remove('view-hidden');
-        landing.classList.add('view-visible');
-        // 清空表单
-        ['login-username','login-password','reg-username','reg-password','reg-info'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-        ['login-error','reg-error','reg-success'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.add('hidden');
-        });
-    }
-
-    function switchAuthTab(tab) {
-        const isLogin = tab === 'login';
-        document.getElementById('authForm-login').classList.toggle('hidden', !isLogin);
-        document.getElementById('authForm-register').classList.toggle('hidden', isLogin);
-        const base = 'flex-1 py-1.5 rounded-full text-xs font-semibold transition text-center';
-        document.getElementById('authTab-login').className = base + (isLogin ? ' auth-tab-active' : ' text-white/50');
-        document.getElementById('authTab-register').className = base + (!isLogin ? ' auth-tab-active' : ' text-white/50');
-    }
-
-    // ===== 登录/注册逻辑 =====
-    async function doLogin() {
-        const username = document.getElementById('login-username').value.trim();
-        const password = document.getElementById('login-password').value;
-        const errEl = document.getElementById('login-error');
-        errEl.classList.add('hidden');
-        if (!username || !password) { errEl.textContent = '用户名和密码不能为空'; errEl.classList.remove('hidden'); return; }
-        try {
-            const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-            const data = await res.json();
-            if (data.status === 'success') {
-                updateAuthUI(true, data.data.username, data.data.uid);
-            } else { errEl.textContent = data.message || '登录失败'; errEl.classList.remove('hidden'); }
-        } catch (e) { errEl.textContent = '网络错误，请重试'; errEl.classList.remove('hidden'); }
-    }
-
-    async function doRegister() {
-        const username = document.getElementById('reg-username').value.trim();
-        const password = document.getElementById('reg-password').value;
-        const info = document.getElementById('reg-info').value.trim();
-        const errEl = document.getElementById('reg-error');
-        const sucEl = document.getElementById('reg-success');
-        errEl.classList.add('hidden'); sucEl.classList.add('hidden');
-        if (!username || !password) { errEl.textContent = '用户名和密码不能为空'; errEl.classList.remove('hidden'); return; }
-        try {
-            const body = { username, password };
-            if (info) body.info = info;
-            const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-            const data = await res.json();
-            if (data.status === 'success') {
-                sucEl.textContent = `注册成功！学号 ${data.data.uid}，即将跳转登录...`;
-                sucEl.classList.remove('hidden');
-                setTimeout(() => switchAuthTab('login'), 1500);
-            } else { errEl.textContent = data.message || '注册失败'; errEl.classList.remove('hidden'); }
-        } catch (e) { errEl.textContent = '网络错误，请重试'; errEl.classList.remove('hidden'); }
-    }
-
-    async function doLogout() {
-        await fetch('/api/auth/logout', { method: 'POST' });
-        updateAuthUI(false);
-    }
-
-    function updateAuthUI(loggedIn, username = '', uid = '') {
-        const userInfo = document.getElementById('userInfo');
-        const loggedInHero = document.getElementById('loggedInHero');
-        const authView = document.getElementById('authView');
-
-        if (loggedIn) {
-            // 导航栏用户信息
-            userInfo.classList.remove('hidden');
-            userInfo.classList.add('flex');
-            document.getElementById('headerUsername').textContent = username;
-            document.getElementById('headerUid').textContent = uid;
-            // Hero 区域：隐藏玻璃卡片，显示快速入口
-            document.querySelector('#authView .glass-card').classList.add('hidden');
-            loggedInHero.classList.remove('hidden');
-            document.getElementById('heroUsername').textContent = username;
-            document.getElementById('searchInput').value = uid;
-            bindSearchInput();
+function parseInfoTags(infoStr, isDark = false) {
+    let basicHtml = '', hobbiesHtml = '';
+    infoStr.split(',').forEach(p => {
+        const [key, value] = p.split(':');
+        if (!value) return;
+        if (key === '爱好' || key === '标签') {
+            const cls = isDark ? 'bg-white/15 text-white/80' : 'tag-warm';
+            hobbiesHtml += value.split(' ').filter(t => t.trim()).map(t =>
+                `<span class="px-2 py-0.5 ${cls} rounded-full text-[10px] font-medium">${t}</span>`).join('');
         } else {
-            userInfo.classList.add('hidden');
-            userInfo.classList.remove('flex');
-            document.querySelector('#authView .glass-card').classList.remove('hidden');
-            loggedInHero.classList.add('hidden');
-            showLandingView();
+            const cls = isDark ? 'bg-white/20 text-white' : 'tag-accent';
+            basicHtml += `<span class="px-2.5 py-1 ${cls} rounded-full text-xs font-semibold">${value}</span>`;
         }
-    }
+    });
+    return { basic: basicHtml, hobbies: hobbiesHtml };
+}
 
-    async function checkLoginStatus() {
-        try {
-            const res = await fetch('/api/auth/me');
-            const data = await res.json();
-            if (data.logged_in) {
-                // 已登录：直接跳到 Auth View 并展示快速入口
-                showAuthView();
-                updateAuthUI(true, data.data.username, data.data.uid);
-            }
-        } catch (e) { /* 忽略 */ }
-    }
+async function searchUser(explicitId = null) {
+    const sid = explicitId || document.getElementById('searchInput').value;
+    if (!sid) return;
+    currentUserId = sid;
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('resultsArea').classList.add('hidden');
+    document.getElementById('errorState').classList.add('hidden');
+    if (!explicitId) { setMode('social'); document.getElementById('communitySelect').value = ''; }
+    const comm = document.getElementById('communitySelect').value;
+    try {
+        const [r1, r2, r3, r4] = await Promise.all([
+            fetch(`/tuijian?id=${sid}&mode=${currentMode}&community=${comm}`),
+            fetch(`/social/report?id=${sid}`),
+            fetch(`/following?id=${sid}`),
+            fetch(`/followers?id=${sid}`)
+        ]);
+        if (!r1.ok || !r2.ok) throw new Error('用户不存在');
+        const td = await r1.json();
+        if (td.error || !td.student_info || td.student_info === `User ${sid}` || td.student_info === `ID:${sid}`)
+            throw new Error('用户不存在');
+        const [rd, fd, fod] = await Promise.all([r2.json(), r3.json(), r4.json()]);
 
-    window.onload = () => {
-        fetchStats();
-        fetchCommunities();
-        checkLoginStatus();
-    };
+        document.getElementById('displayUserId').innerText = sid;
+        const ut = parseInfoTags(td.student_info, true);
+        document.getElementById('displayUserInfo').innerHTML = ut.basic + ut.hobbies;
+
+        const rc = document.getElementById('recommendList');
+        rc.innerHTML = '';
+        if (!td.recommend_friends?.length) {
+            rc.innerHTML = `<div class="col-span-2 flex flex-col items-center py-16 text-stone-300"><div class="text-5xl mb-3">🤔</div><p class="text-sm">暂无推荐结果</p></div>`;
+        } else {
+            td.recommend_friends.forEach((info, i) => {
+                const t = parseInfoTags(info);
+                rc.innerHTML += `<div class="p-5 rounded-xl border border-stone-100 hover:border-amber-200 hover:bg-amber-50/30 transition group cursor-pointer">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex flex-wrap gap-1.5">${t.basic}</div>
+                        <span class="font-serif text-xl font-bold text-stone-200 group-hover:text-amber-400 transition">#${i+1}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1">${t.hobbies}</div>
+                </div>`;
+            });
+        }
+        renderRelationList('following', fd.following);
+        document.getElementById('countFollowing').innerText = fd.count || 0;
+        renderRelationList('followers', fod.followers);
+        document.getElementById('countFollowers').innerText = fod.followers_count || 0;
+        renderDiagnostic(rd);
+        document.getElementById('resultsArea').classList.remove('hidden');
+        showTab('recommended');
+        document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+        document.getElementById('errorState').classList.remove('hidden');
+        document.getElementById('errorMessage').innerText =
+            err.message === '用户不存在' ? `未找到学号 ${sid} 的用户，请核对后重试。` : '获取数据时发生异常: ' + err.message;
+    }
+}
+
+function renderRelationList(type, list) {
+    const c = document.getElementById(`${type}List`);
+    c.innerHTML = '';
+    if (!list?.length) { c.innerHTML = '<p class="text-xs text-stone-300 p-2">暂无关系</p>'; return; }
+    list.forEach(info => {
+        const t = parseInfoTags(info);
+        c.innerHTML += `<div class="p-3 rounded-xl border border-stone-100 text-xs flex items-center gap-2 hover:bg-stone-50 transition">
+            <div class="flex gap-1 shrink-0">${t.basic}</div>
+            <div class="flex flex-wrap gap-0.5">${t.hobbies}</div>
+        </div>`;
+    });
+}
+
+function renderDiagnostic(data) {
+    document.getElementById('diagnosticPanel').classList.remove('hidden');
+    document.getElementById('diagTitle').innerText = data.status.title;
+    document.getElementById('diagDesc').innerText = data.status.description;
+    document.getElementById('diagConnCount').innerText = data.status.total_connections;
+    document.getElementById('diagAdvice').innerText = data.advice;
+    if (myChart) myChart.destroy();
+    const ctx = document.getElementById('communityChart').getContext('2d');
+    myChart = new Chart(ctx, {
+        type: 'pie',
+        data: { labels: data.distribution.map(d => d.name), datasets: [{ data: data.distribution.map(d => d.count), backgroundColor: chartColors, borderWidth: 2, borderColor: '#faf9f7' }] },
+        options: { responsive: true, maintainAspectRatio: true, plugins: {
+            legend: { display: true, position: 'right', labels: { font: { size: 9 }, padding: 8, usePointStyle: true, pointStyle: 'circle',
+                generateLabels: chart => chart.data.labels.map((label, i) => ({ text: `${label} (${chart.data.datasets[0].data[i]}人)`, fillStyle: chart.data.datasets[0].backgroundColor[i], hidden: false, index: i }))
+            }},
+            tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}人` } }
+        }}
+    });
+}
+
+function showTab(name) {
+    ['recommended','following','followers'].forEach(t => {
+        document.getElementById(`tabContent_${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('tab-active');
+    });
+    document.getElementById(`tabContent_${name}`).classList.remove('hidden');
+    document.getElementById(`tab-${name}`).classList.add('tab-active');
+}
+
+document.getElementById('searchInput').addEventListener('keypress', e => { if (e.key === 'Enter') searchUser(); });
+
+// ══════════════════════════════════════════
+//  初始化
+// ══════════════════════════════════════════
+async function checkLoginStatus() {
+    try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (data.logged_in) {
+            State.setUser(data.data);
+            Router.go('/dashboard', true);
+        }
+    } catch { /* 忽略 */ }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    Router.init();
+    fetchStats();
+    fetchCommunities();
+    checkLoginStatus();
+});
 </script>
 </body>
 </html>
