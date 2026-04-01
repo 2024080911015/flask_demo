@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { margin: 0; background-color: #0f172a; font-family: sans-serif; overflow: hidden;}
+    .node-tooltip { background: rgba(15,23,42,0.9); border: 1px solid #334155; border-radius: 6px; padding: 12px; color: white; font-size: 13px;}
+    .node-tooltip .name { font-weight: bold; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 5px;}
+    
+    #control-panel {
+      position: absolute; top: 20px; left: 20px; background: rgba(30,41,59,0.8); backdrop-filter: blur(10px);
+      border-radius: 12px; padding: 15px; color: white; border: 1px solid #475569; z-index: 10;
+    }
+    select { width: 100%; padding: 8px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid #475569;}
+  </style>
+  <script src="https://unpkg.com/3d-force-graph"></script>
+</head>
+<body>
+  <div id="control-panel">
+    <h3 style="margin-top:0; color:#38bdf8;">🌌 校园圈层全景</h3>
+    <select id="community-select" onchange="filterByCommunity()">
+      <option value="ALL">🌐 显示全校完整图谱</option>
+      <option value="硬核极客圈">💻 硬核极客圈</option>
+      <option value="运动健将圈">🏀 运动健将圈</option>
+      <option value="文艺星人圈">🎨 文艺星人圈</option>
+      <option value="二次元宅圈">🎮 二次元宅圈</option>
+      <option value="社牛风云圈">🔥 社牛风云圈</option>
+      <option value="佛系养生圈">🍵 佛系养生圈</option>
+      <option value="爆肝修仙圈">🦉 爆肝修仙圈</option>
+    </select>
+  </div>
+  <div id="3d-graph"></div>
+
+  <script>
+    let fullData = { nodes: [], links:[] };
+    const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
+      .jsonUrl('/static/graph.json?t=' + Math.random())
+      .backgroundColor('#0f172a')
+      .nodeRelSize(4)
+      .nodeVal(node => Math.sqrt(node.val || 1) * 0.8)
+      .nodeAutoColorBy('community')
+      .nodeLabel(node => `<div class="node-tooltip"><div class="name">👤 ${node.name} 【${node.community||'未知'}】</div>${(node.info||'').replace(/,/g, '<br/>')}</div>`)
+      .linkColor(() => 'rgba(148, 163, 184, 0.25)')
+      .linkWidth(0.6)
+      .onEngineStop(() => Graph.zoomToFit(400));
+
+    fetch('/static/graph.json').then(res => res.json()).then(data => fullData = data);
+
+    function filterByCommunity() {
+      const comm = document.getElementById('community-select').value;
+      if (comm === "ALL") { Graph.graphData(fullData); return; }
+      
+      const filteredNodes = fullData.nodes.filter(n => n.community === comm);
+      const nodeIds = new Set(filteredNodes.map(n => n.id));
+      const filteredLinks = fullData.links.filter(l => nodeIds.has(l.source.id || l.source) && nodeIds.has(l.target.id || l.target));
+      
+      Graph.graphData({ nodes: filteredNodes, links: filteredLinks });
+    }
+    window.addEventListener('resize', () => { Graph.width(window.innerWidth); Graph.height(window.innerHeight); });
+  </script>
+</body>
+</html>

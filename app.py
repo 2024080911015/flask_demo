@@ -57,9 +57,10 @@ try:
         except UnicodeDecodeError:
             df_users=pd.read_csv(users_csv_path,encoding='gbk')
         if 'uid' in df_users.columns and 'info' in df_users.columns:
-            # 将原来的那行替换成这行：
-            user_info_map = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
-            print(f"Loaded user info for {len(user_info_map)} users.")
+            # 核心防弹补丁：强制把键转化为标准的 Python int，防止类型匹配失败！
+            temp_dict = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
+            user_info_map = {int(k): str(v) for k, v in temp_dict.items()}
+            print(f"✅ Loaded user info for {len(user_info_map)} users.")
 except Exception as e:
     print(f"Error loading user info: {e}")
 
@@ -110,9 +111,28 @@ def get_community():
         "status": "success",
         "communities": list(COMMUNITY_RULES.keys())
     })
-#推荐接口
+# 修改 1：推荐接口
 @app.route('/tuijian')
 def tuijian():
+    sid = request.args.get('id', default=None, type=int)
+    mode = request.args.get('mode', default='social', type=str)
+    community_tag = request.args.get('community', default=None, type=str)
+    if sid is None: return jsonify({"error": "Missing id"}), 400
+    
+    rec_ids = step3_recommend.recommend_friends(sid, top_k=5, mode=mode, community=community_tag)
+    
+    # 核心修改：返回带有 id 的字典
+    rec_data_list =[{"id": rid, "info": user_info_map.get(rid, f"未知")} for rid in rec_ids]
+    
+    return jsonify({
+        "student_id": sid,
+        "mode": mode,
+        "student_info": user_info_map.get(sid, f"ID:{sid}"),
+        "recommend_friends": rec_data_list,  # 这里变成了字典数组
+        "recommend_ids": rec_ids, # 留给星图用
+        "count": len(rec_data_list)
+    })
+
     sid=request.args.get('id',default=None, type=int)
     
     mode=request.args.get('mode',default='social', type=str) #新增 mode 参数，默认 social
@@ -129,6 +149,7 @@ def tuijian():
             "mode": mode,
             "student_info": user_info_map.get(sid, f"ID:{sid}"),
             "recommend_friends": rec_info_list,
+            "recommend_ids": rec_ids,
             "count": len(rec_info_list)
         }) #返回推荐结果的JSON格式
 #返回所有用户信息的接口
@@ -153,8 +174,22 @@ def get_user():
         "student_info": user_info
     })
 #获取用户的关注列表接口
+# 修改 2：关注列表接口
 @app.route('/following')
 def get_following():
+    sid = request.args.get('id', default=None, type=int)
+    if sid is None: return jsonify({"error": "Missing id"}), 400
+    
+    following_list = follow_dict.get(sid,[])
+    # 核心修改：返回带有 id 的字典
+    following_data_list = [{"id": fid, "info": user_info_map.get(fid, f"未知")} for fid in following_list]
+    
+    return jsonify({
+        "student_id": sid,
+        "count": len(following_data_list),
+        "following": following_data_list,
+    })
+
     sid = request.args.get('id', default=None, type=int)
     if sid is None:
         return jsonify({"error": "Missing 'id' parameter"}), 400
@@ -170,8 +205,21 @@ def get_following():
         "following": following_list_info,
     })
 #获取用户的粉丝列表接口
+# 修改 3：粉丝列表接口
 @app.route('/followers')
 def get_followers():
+    sid = request.args.get('id', default=None, type=int)
+    if sid is None: return jsonify({"error": "Missing id"}), 400
+
+    followers_list =[uid for uid, following in follow_dict.items() if sid in following]
+    # 核心修改：返回带有 id 的字典
+    followers_data_list =[{"id": fid, "info": user_info_map.get(fid, f"未知")} for fid in followers_list]
+
+    return jsonify({
+        "student_id": sid,
+        "followers_count": len(followers_data_list),
+        "followers": followers_data_list
+    })
     sid = request.args.get('id', default=None, type=int)
     if sid is None:
         return jsonify({"error": "Missing 'id' parameter"}), 400
