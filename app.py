@@ -91,9 +91,17 @@ print(f"下一个 uid 将从: {next_uid} 开始")
 # 加载社交网络数据 (来自 step3_recommend.py)
 follow_dict = step3_recommend.follow_dict
 
-#网页主页面
-@app.route('/')
-def home():
+#网页主页面（catch-all：所有前端路由都返回同一个 index.html）
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def home(path):
+    # API 路由不在这里处理，只处理前端页面路径
+    if path.startswith('api/') or path.startswith('tuijian') or \
+       path.startswith('community') or path.startswith('users') or \
+       path.startswith('user') or path.startswith('following') or \
+       path.startswith('followers') or path.startswith('social'):
+        from flask import abort
+        abort(404)
     return render_template('index.html')
 #社区列表接口
 @app.route('/community')
