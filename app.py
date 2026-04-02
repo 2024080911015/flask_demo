@@ -499,18 +499,110 @@ def api_current_user():
         }), 200
     return jsonify({"status": "success", "logged_in": False}), 200
 
-#T+1动态图模型重训-Loihan-注——只实现了手动重新训练，还没有定时重新训练的功能。重新训练的脚本是t_plus_1_scheduler.py
+# ==========================================
+#  (管理员专属)
+# ==========================================
 @app.route('/api/admin/retrain', methods=['POST'])
 def admin_retrain():
-    """答辩用，一键触发T+1动态图模型重训"""
-    result = run_pipeline()
-    if result['status'] == 'success':
-        # 训练完成后，强制内存重新加载最新的 embedding 向量
-        import torch
+    """超级管理员专用：手动触发 T+1 模型重训（吸收新注册用户和新关注关系）"""
+    from t_plus_1_scheduler import run_pipeline
+    import step3_recommend
+    import torch
+    import pandas as pd
+    import os
+
+    try:
+        # 1. 运行流水线 (跑 step1, step2, build_visual_graph)
+        result = run_pipeline()
+        if result.get('status') != 'success':
+            raise Exception(result.get('message', '未知错误'))
+
+        # 2. 热更新内存数据，防止网页读到旧数据！
+        # 重新加载模型向量
         step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
-    return jsonify(result)
+        # 重新加载关注字典
+        step3_recommend.follow_dict = step3_recommend.load_social_data()
 
+        # 重新加载用户信息字典 (把新注册的用户加载进内存)
+        global user_info_map
+        users_csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.csv")
+        try:
+            df_users = pd.read_csv(users_csv_path, encoding='utf-8')
+        except UnicodeDecodeError:
+            df_users = pd.read_csv(users_csv_path, encoding='gbk')
+        
+        temp_dict = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
+        user_info_map = {int(k): str(v) for k, v in temp_dict.items()}
 
+        return jsonify({"status": "success", "message": "模型重训完毕！已成功吸收新增的社交关系与新用户！"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+# ==========================================
+# 社交互动功能区 (关注 / 取关 / 回关)
+# ==========================================
+@app.route('/api/social/toggle_follow', methods=['POST'])
+def toggle_follow():
+    """处理关注/取关逻辑，并更新底层 edges_time.csv 数据源"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+        
+    current_uid = session['uid']
+
+    # 🛡️ 核心防弹补丁 1：绝对禁止 manager (uid=0) 产生连边，防止 CUDA -1 越界崩溃！
+    if current_uid == 0:
+        return jsonify({"status": "error", "message": "管理员账号 (manager) 为上帝视角，不可参与社交连边！"}), 403
+    
+    data = request.get_json()
+    target_uid = int(data.get('target_id'))
+    action = data.get('action') # 'follow' 或 'unfollow'
+    
+    try:
+        from datetime import datetime
+        import step3_recommend
+        
+        # 1. 更新内存字典 (让前端刷新时能立刻读到最新状态，无需等凌晨重训)
+        if current_uid not in step3_recommend.follow_dict:
+            step3_recommend.follow_dict[current_uid] =[]
+            
+        if action == 'follow' and target_uid not in step3_recommend.follow_dict[current_uid]:
+            step3_recommend.follow_dict[current_uid].append(target_uid)
+        elif action == 'unfollow' and target_uid in step3_recommend.follow_dict[current_uid]:
+            step3_recommend.follow_dict[current_uid].remove(target_uid)
+            
+        # 2. 更新底层数据源 edges_time.csv (为凌晨的 GNN 重训做准备)
+        edges_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'edges_time.csv')
+        df = pd.read_csv(edges_path)
+        
+        if action == 'follow':
+            # 追加一条新边，带上最新时间戳 (触发 Hawkes 过程)
+            new_row = pd.DataFrame({
+                'timestamp':[datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                'source_id': [current_uid],
+                'target_id': [target_uid]
+            })
+            df = pd.concat([df, new_row], ignore_index=True)
+        elif action == 'unfollow':
+            # 删除这条边
+            df = df[~((df['source_id'] == current_uid) & (df['target_id'] == target_uid))]
+            
+        df.to_csv(edges_path, index=False)
+        
+        # 3. 同步到 SQLite 数据库 (保持全栈数据一致性)
+        from sqlalchemy import text
+        if action == 'follow':
+            db.session.execute(text("INSERT INTO edges_time (timestamp, source_id, target_id) VALUES (:ts, :s, :t)"), 
+                               {'ts': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 's': current_uid, 't': target_uid})
+        else:
+            db.session.execute(text("DELETE FROM edges_time WHERE source_id = :s AND target_id = :t"), 
+                               {'s': current_uid, 't': target_uid})
+        db.session.commit()
+        
+        return jsonify({"status": "success", "message": f"已{'关注' if action=='follow' else '取消关注'}"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
     app.run(host="0.0.0.0", port=5001, debug=True)

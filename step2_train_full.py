@@ -5,7 +5,7 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.utils import negative_sampling
 from sklearn.metrics import roc_auc_score
 
-print("🚀 正在启动时序图神经网络 (带 AUC 实时监控)...")
+print(" 正在启动时序图神经网络 (带 AUC 实时监控)...")
 
 # 1. 加载数据
 data = torch.load('campus_graph_full.pt', weights_only=False)
@@ -23,7 +23,7 @@ train_edge_weight = data.edge_weight[:split_idx].to(device)
 test_edge_index = data.edge_index[:, split_idx:].to(device)
 x = data.x.to(device)
 
-print(f"📅 时序切分: 训练集(过去) {split_idx} 条边, 测试集(未来) {total_edges - split_idx} 条边")
+print(f" 时序切分: 训练集(过去) {split_idx} 条边, 测试集(未来) {total_edges - split_idx} 条边")
 
 # 3. 带有时间权重的 GCN 模型
 class TemporalGCN(torch.nn.Module):
@@ -41,7 +41,7 @@ model = TemporalGCN(data.num_features, 64, 32).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
 # 4. 训练与验证循环
-print("\n🔥 开始训练并监控未来预测准确率 (AUC)...")
+print("\n 开始训练并监控未来预测准确率 (AUC)...")
 
 for epoch in range(1, 301):
     model.train()
@@ -76,7 +76,7 @@ for epoch in range(1, 301):
             labels = np.concatenate([np.ones_like(pos_test_score), np.zeros_like(neg_test_score)])
             auc = roc_auc_score(labels, preds)
             
-            print(f'Epoch {epoch:03d} | Loss: {loss.item():.4f} | 🎯 预测未来准确率 (AUC): {auc:.4f}')
+            print(f'Epoch {epoch:03d} | Loss: {loss.item():.4f} |  预测未来准确率 (AUC): {auc:.4f}')
 
 # 5. 保存
 model.eval()
@@ -85,4 +85,4 @@ with torch.no_grad():
     final_embeddings = model(data.x.to(device), data.edge_index.to(device), data.edge_weight.to(device))
     torch.save(final_embeddings.cpu(), 'user_embeddings.pt')
 
-print("\n✅ 训练与评估完成！")
+print("\n 训练与评估完成！")

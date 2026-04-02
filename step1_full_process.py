@@ -3,7 +3,7 @@ import torch
 from torch_geometric.data import Data
 import numpy as np
 
-print("🚀 正在重构数据工程: [52维特征 + 指数时间衰减机制]...")
+print(" 正在重构数据工程: [52维特征 + 指数时间衰减机制]...")
 
 # 1. 字典定义
 GENDERS, GRADES = ["男", "女"],["大一","大二","大三","大四","研一","研二","研三","博士"]
@@ -35,13 +35,15 @@ def encode_user(info_str):
     except: pass
     return np.concatenate([vec_g, vec_gr, vec_m, vec_i, vec_l])
 
-print("👉 处理用户节点...")
+print(" 处理用户节点...")
 df_users = pd.read_csv('users.csv')
 x = torch.tensor(np.array([encode_user(row['info']) for _, row in df_users.iterrows()]), dtype=torch.float)
 
 # 3. 边处理与指数时间衰减 (Exponential Decay)
-print("👉 处理时间序列边...")
+print(" 处理时间序列边...")
 df_edges = pd.read_csv('edges_time.csv')
+# 核心防弹补丁 2：清洗掉所有 uid <= 0 的幽灵边（比如 manager）
+df_edges = df_edges[(df_edges['source_id'] > 0) & (df_edges['target_id'] > 0)]
 # 严格按时间先后排序，确保因果性
 df_edges = df_edges.sort_values(by='timestamp').reset_index(drop=True)
 
@@ -65,4 +67,4 @@ edge_weight = torch.tensor(edge_weight.values, dtype=torch.float)
 # 4. 保存
 data = Data(x=x, edge_index=edge_index, edge_weight=edge_weight)
 torch.save(data, 'campus_graph_full.pt')
-print(f"✅ 数据重构完毕！包含 {data.num_nodes} 节点, {data.num_edges} 条动态边。")
+print(f" 数据重构完毕！包含 {data.num_nodes} 节点, {data.num_edges} 条动态边。")

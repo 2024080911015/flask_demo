@@ -4,7 +4,6 @@ import community.community_louvain as community_louvain
 import json
 import os
 
-# 从后端同步过来的社区划分规则
 COMMUNITY_RULES = {
     "运动健将圈":["足球", "羽毛球", "跑步", "骑行", "运动达人", "体育"],
     "文艺星人圈":["音乐", "舞蹈", "绘画", "剪纸", "缝纫", "温和", "可爱", "美术", "英语"],
@@ -16,11 +15,9 @@ COMMUNITY_RULES = {
 }
 
 def get_semantic_community(info_str):
-    """根据用户信息，匹配最符合的业务圈层名称"""
-    best_comm = "综合跨界圈" # 兜底选项
+    best_comm = "综合跨界圈"
     max_matches = 0
     for comm, keywords in COMMUNITY_RULES.items():
-        # 算一下这个人命中了几个该圈子的关键词
         matches = sum(1 for kw in keywords if kw in str(info_str))
         if matches > max_matches:
             max_matches = matches
@@ -28,7 +25,7 @@ def get_semantic_community(info_str):
     return best_comm
 
 def generate_graph_json():
-    print("🌌 正在启动神经图谱构建与语义社区映射...")
+    print(" 正在启动神经图谱构建与语义社区映射...")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
     users_csv = os.path.join(current_dir, 'users.csv')
@@ -44,6 +41,9 @@ def generate_graph_json():
         
     df_edges = pd.read_csv(edges_csv)
 
+    #  防弹 1：物理超度所有的“历史脏数据”和幽灵边 (比如 manager的记录)
+    df_edges = df_edges[(df_edges['source_id'] > 0) & (df_edges['target_id'] > 0)]
+
     G = nx.Graph()
     for _, row in df_users.iterrows():
         G.add_node(int(row['uid']), info=row['info'])
@@ -57,8 +57,8 @@ def generate_graph_json():
 
     nodes_data =[]
     for node_id in G.nodes():
-        info_str = G.nodes[node_id]['info']
-        # 核心修改：获取真实的中文圈子名称
+        #  防弹 2：使用 .get() 安全读取，就算再有幽灵节点也绝对不崩溃！
+        info_str = G.nodes[node_id].get('info', '性别:未知,标签:无标签')
         semantic_comm = get_semantic_community(info_str)
         
         nodes_data.append({
@@ -66,8 +66,8 @@ def generate_graph_json():
             "name": f"User {node_id}",
             "info": info_str,
             "val": degrees.get(node_id, 0) * 2 + 5,
-            "group": partition.get(node_id, 0), # 保留底层数学聚类结果
-            "community": semantic_comm          # 新增：前端展示用的中文圈层！
+            "group": partition.get(node_id, 0),
+            "community": semantic_comm
         })
 
     links_data =[{"source": str(u), "target": str(v)} for u, v in G.edges()]
@@ -75,9 +75,8 @@ def generate_graph_json():
     with open(output_json, 'w', encoding='utf-8') as f:
         json.dump({"nodes": nodes_data, "links": links_data}, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ 神经图谱生成完毕！已为所有节点打上专属中文圈层标签。")
+    print(f" 神经图谱生成完毕！已为所有节点打上专属中文圈层标签。")
     return True
 
 if __name__ == "__main__":
-    generate_graph_json()
     generate_graph_json()
