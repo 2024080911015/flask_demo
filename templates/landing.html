@@ -1,0 +1,18 @@
+<div id="page-landing" class="page hero-bg">
+    <div class="overlay-top absolute inset-0 pointer-events-none"></div>
+    <div class="overlay-bottom absolute inset-0 pointer-events-none"></div>
+    <nav class="relative z-10 flex items-center justify-between px-8 md:px-16 pt-8">
+        <span class="font-serif text-white text-xl font-bold tracking-wide shadow-text">推荐交友</span>
+    </nav>
+    <div class="relative z-10 min-h-screen flex flex-col items-center justify-center text-center px-6 pb-40 pt-8">
+        <p class="text-white/60 text-sm tracking-[0.2em] uppercase mb-6 shadow-text">Campus Social · AI Powered</p>
+        <h1 class="font-serif italic text-white font-bold leading-tight mb-6 shadow-text-lg" style="font-size:clamp(2.8rem,8vw,6rem);">
+            miss you,<br>but don't<br>miss you.
+        </h1>
+        <p class="text-white/70 text-base md:text-lg mb-12 max-w-xs leading-relaxed shadow-text">在这里，遇见和你频率相同的人。</p>
+        <div class="flex flex-col sm:flex-row gap-4">
+            <button onclick="Router.go('/auth')" class="btn-glow glass rounded-full px-8 py-3 text-white font-semibold text-sm tracking-wide shadow-xl">登录 / 注册</button>
+            <button onclick="openGraphModal('/static/public_graph.html')" class="btn-glow bg-amber-500/80 hover:bg-amber-500 border border-amber-300/50 rounded-full px-8 py-3 text-white font-semibold text-sm tracking-wide shadow-xl transition">🌌 探索校园星系图</button>
+        </div>
+    </div>
+</div>

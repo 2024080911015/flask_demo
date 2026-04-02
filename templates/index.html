@@ -1,277 +1,95 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>推荐交友 · 校园社交</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <!-- 引入分离的 CSS -->
-    <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-
-<!-- 3D 图谱全屏弹窗 (Modal) -->
-<div id="graphModal" class="fixed inset-0 z-[100] hidden bg-black/90 backdrop-blur-sm transition-opacity">
-    <button onclick="closeGraphModal()" class="absolute top-4 right-6 text-white bg-white/10 hover:bg-red-500 rounded-full p-2 z-[101] transition">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke="cap=" round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-    </button>
-    <iframe id="graphIframe" src="" class="w-full h-full border-none"></iframe>
-</div>
-
-<!-- 注册属性选择弹窗 -->
-<div id="registrationOptionsModal" class="fixed inset-0 z-[100] hidden bg-black/80 backdrop-blur-sm">
-    <div class="min-h-screen flex items-center justify-center px-6 py-12">
-        <div class="glass-card rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-white font-bold text-lg">完善个人信息</h2>
-                    <button onclick="closeRegistrationOptions()" class="text-white/60 hover:text-white transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-
-                <!-- 性别选择 -->
-                <div class="mb-4">
-                    <label class="text-white/50 text-xs mb-2 block">性别</label>
-                    <div id="reg-gender-options" class="flex gap-2 flex-wrap"></div>
-                </div>
-
-                <!-- 年级选择 -->
-                <div class="mb-4">
-                    <label class="text-white/50 text-xs mb-2 block">年级</label>
-                    <div id="reg-grade-options" class="flex gap-2 flex-wrap"></div>
-                </div>
-
-                <!-- 专业选择 -->
-                <div class="mb-4">
-                    <label class="text-white/50 text-xs mb-2 block">专业</label>
-                    <div id="reg-major-options" class="flex gap-2 flex-wrap"></div>
-                </div>
-
-                <!-- 爱好选择（可多选） -->
-                <div class="mb-4">
-                    <label class="text-white/50 text-xs mb-2 block">爱好（可多选）</label>
-                    <div id="reg-hobbies-options" class="flex gap-2 flex-wrap"></div>
-                </div>
-
-                <!-- 标签选择（可多选） -->
-                <div class="mb-4">
-                    <label class="text-white/50 text-xs mb-2 block">标签（可多选）</label>
-                    <div id="reg-tags-options" class="flex gap-2 flex-wrap"></div>
-                </div>
-
-                <p id="reg-options-error" class="text-xs text-red-300 hidden pt-1"></p>
-                <p id="reg-options-success" class="text-xs text-emerald-300 hidden pt-1"></p>
-                <button onclick="confirmRegistration()" class="w-full mt-4 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">确认注册</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- PAGE 1: 首页 -->
-<div id="page-landing" class="page hero-bg">
-    <div class="overlay-top absolute inset-0 pointer-events-none"></div>
-    <div class="overlay-bottom absolute inset-0 pointer-events-none"></div>
-    <nav class="relative z-10 flex items-center justify-between px-8 md:px-16 pt-8">
-        <span class="font-serif text-white text-xl font-bold tracking-wide shadow-text">推荐交友</span>
-    </nav>
-    <div class="relative z-10 min-h-screen flex flex-col items-center justify-center text-center px-6 pb-40 pt-8">
-        <p class="text-white/60 text-sm tracking-[0.2em] uppercase mb-6 shadow-text">Campus Social · AI Powered</p>
-        <h1 class="font-serif italic text-white font-bold leading-tight mb-6 shadow-text-lg" style="font-size:clamp(2.8rem,8vw,6rem);">
-            miss you,<br>but don't<br>miss you.
-        </h1>
-        <p class="text-white/70 text-base md:text-lg mb-12 max-w-xs leading-relaxed shadow-text">
-            在这里，遇见和你频率相同的人。
-        </p>
-        <div class="flex flex-col sm:flex-row gap-4">
-            <button onclick="Router.go('/auth')" class="btn-glow glass rounded-full px-8 py-3 text-white font-semibold text-sm tracking-wide shadow-xl">
-                登录 / 注册
-            </button>
-            <!-- 【新增】宏观图谱按钮 -->
-            <button onclick="openGraphModal('/static/public_graph.html')" class="btn-glow bg-amber-500/80 hover:bg-amber-500 border border-amber-300/50 rounded-full px-8 py-3 text-white font-semibold text-sm tracking-wide shadow-xl transition">
-                🌌 探索校园星系图
-            </button>
-        </div>
-        <p class="text-white/30 text-xs mt-8 shadow-text">已有 <span id="heroUserCount">—</span> 位同学加入</p>
-    </div>
-</div>
-
-<!-- PAGE 2: 登录注册页 (保持不变) -->
-<div id="page-auth" class="page hero-bg">
-    <!-- ... (为了节省字数，这里和原来 auth 页的 HTML 一模一样，不要动它) ... -->
-    <div class="overlay-top absolute inset-0 pointer-events-none"></div>
-    <div style="background:linear-gradient(to top,rgba(5,5,15,0.6) 0%,transparent 60%)" class="absolute inset-0 pointer-events-none"></div>
-    <nav class="relative z-10 flex items-center px-8 md:px-16 pt-8">
-        <button onclick="Router.go('/')" class="flex items-center gap-2 text-white/60 hover:text-white transition text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-            返回
+{% extends "base.html" %}
+{% block content %}
+    <!-- 弹窗组件 -->
+    <div id="graphModal" class="fixed inset-0 z-[100] hidden bg-black/90 backdrop-blur-sm">
+        <button onclick="closeGraphModal()" class="absolute top-4 right-6 text-white bg-white/10 hover:bg-red-500 rounded-full p-2 z-[101] transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
-    </nav>
-    <div class="relative z-10 min-h-screen flex items-center justify-center px-6 pb-16 pt-4">
-        <div class="glass-card rounded-3xl w-full max-w-sm overflow-hidden">
-            <div class="flex p-4 pb-0 gap-2">
-                <button id="authTab-login" onclick="switchAuthTab('login')" class="auth-tab on flex-1 py-2 rounded-xl text-sm font-semibold text-center">Log in</button>
-                <button id="authTab-register" onclick="switchAuthTab('register')" class="auth-tab flex-1 py-2 rounded-xl text-sm font-semibold text-center">Sign up</button>
-            </div>
-            <div class="relative px-6 pt-5 pb-6" style="min-height:260px">
-                <div id="authForm-login" class="form-panel space-y-3">
-                    <input id="login-username" type="text" placeholder="用户名" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
-                    <input id="login-password" type="password" placeholder="密码" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
-                    <p id="login-error" class="text-xs text-red-300 hidden pt-1"></p>
-                    <button onclick="doLogin()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">Log in</button>
+        <iframe id="graphIframe" src="" class="w-full h-full border-none"></iframe>
+    </div>
+<!-- 个人主页模态框 (User Profile Modal) -->
+<div id="userProfileModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center bg-stone-900/80 backdrop-blur-md transition-opacity">
+    <!-- 卡片容器：超大圆角，极简留白 -->
+    <div class="bg-white rounded-[2rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl relative custom-scroll transform transition-all">
+        
+        <!-- 悬浮关闭按钮 (磨砂玻璃质感) -->
+        <button onclick="closeUserModal()" class="absolute top-5 right-5 w-8 h-8 flex items-center justify-center bg-black/20 hover:bg-black/40 backdrop-blur text-white rounded-full transition z-20 font-bold">
+            ✕
+        </button>
+
+        <!-- 艺术感 Banner (深邃质感，代替原来刺眼的渐变) -->
+        <div class="h-36 w-full bg-gradient-to-br from-stone-800 via-stone-700 to-stone-900 relative overflow-hidden">
+            <!-- 装饰性光晕，增加科技感 -->
+            <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/20 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+            <div class="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl transform -translate-x-1/2 translate-y-1/2"></div>
+        </div>
+
+        <!-- 主体内容区 -->
+        <div class="px-8 pb-8 relative">
+            
+            <!-- 头像与操作栏 (巧妙重叠，破框而出) -->
+            <div class="flex justify-between items-end -mt-12 mb-4">
+                <!-- 头像 -->
+                <div class="w-24 h-24 rounded-full bg-gradient-to-br from-stone-50 to-stone-100 border-4 border-white flex items-center justify-center text-stone-700 font-serif font-bold text-4xl shadow-lg relative z-10" id="modalAvatar">
+                    ?
                 </div>
-                <div id="authForm-register" class="form-panel hidden-form space-y-3">
-                    <input id="reg-username" type="text" placeholder="用户名" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
-                    <input id="reg-password" type="password" placeholder="密码" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
-                    <p id="reg-error" class="text-xs text-red-300 hidden pt-1"></p>
-                    <button onclick="showRegistrationOptions()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">Sign up</button>
+                <!-- 关注按钮容器 -->
+                <div id="modalFollowBtnContainer" class="pb-2"></div>
+            </div>
+
+            <!-- 用户名与 ID -->
+            <div class="mb-6">
+                <h3 class="text-3xl font-serif font-bold text-stone-800 tracking-tight" id="modalUsername">Name</h3>
+                <p class="text-stone-400 font-mono text-sm mt-1">Campus ID: #<span id="modalUid"></span></p>
+            </div>
+
+            <!-- 优雅的分割线 -->
+            <div class="h-px w-full bg-stone-100 mb-6"></div>
+
+            <!-- 档案信息：基础属性 -->
+            <div class="mb-6">
+                <h4 class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">基础信息 Basic Info</h4>
+                <div id="modalBasicInfo" class="flex flex-wrap gap-2">
+                    <!-- JS 自动注入蓝/灰底标签 -->
                 </div>
             </div>
+
+            <!-- 档案信息：个性与爱好 -->
+            <div class="mb-8">
+                <h4 class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">生活与爱好 Lifestyle & Hobbies</h4>
+                <div id="modalHobbiesInfo" class="flex flex-wrap gap-2">
+                    <!-- JS 自动注入黄/橙底标签 -->
+                </div>
+            </div>
+
+            <!-- 社交雷达诊断卡片 (数据看板风格) -->
+            <div class="bg-stone-50 rounded-2xl p-5 border border-stone-100/80">
+                <h4 class="text-xs font-bold text-stone-800 mb-4 flex items-center gap-2">
+                    <span class="text-lg">📡</span> AI 社交洞察
+                </h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- 活跃度指标 -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-stone-100/50 flex flex-col justify-center">
+                        <div class="text-stone-400 text-[10px] uppercase font-bold mb-1">全网连通度</div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="modalConnCount" class="font-bold text-stone-800 text-2xl leading-none">0</span>
+                            <span class="text-xs text-stone-500 font-medium">个朋友</span>
+                        </div>
+                    </div>
+                    <!-- 圈层指标 -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-stone-100/50 flex flex-col justify-center">
+                        <div class="text-stone-400 text-[10px] uppercase font-bold mb-1">核心活跃圈层</div>
+                        <div id="modalDominantComm" class="font-bold text-amber-600 text-sm mt-1 truncate">暂无</div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
 
-<!-- PAGE 3: 个人/管理员大盘 -->
-<div id="page-dashboard" class="page section-bg" style="overflow-y:auto">
-    <header class="bg-white border-b border-stone-100 sticky top-0 z-50 shadow-sm">
-        <div class="max-w-[96%] xl:max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between gap-4">
-            <span class="font-serif text-stone-800 text-lg font-bold">推荐交友 <span id="adminBadge" class="hidden ml-2 text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-full font-sans">管理员模式</span></span>
-            <div class="flex items-center gap-3">
-                <!-- 【核心逻辑】搜索框，默认隐藏，管理员可见 -->
-                <div id="searchContainer" class="hidden flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
-                    <input type="number" id="searchInput" placeholder="搜索全校学号" class="bg-transparent text-sm outline-none w-36 text-stone-700 placeholder-stone-400">
-                    <button onclick="searchUser()" class="text-stone-400 hover:text-amber-600 transition">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    </button>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm" id="avatarInitial">?</div>
-                    <div class="hidden sm:block">
-                        <p class="text-xs font-semibold text-stone-700" id="dashUsername">—</p>
-                        <p class="text-[10px] text-stone-400">学号 <span id="dashUid" class="font-mono text-amber-600">—</span></p>
-                    </div>
-                    <button onclick="doLogout()" class="ml-1 text-xs text-stone-400 hover:text-stone-600 border border-stone-200 px-3 py-1.5 rounded-lg transition">退出</button>
-                </div>
-            </div>
-        </div>
-    </header>
-
-    <main class="max-w-[96%] xl:max-w-[1600px] mx-auto px-6 py-8">
-        <!-- 管理员超级控制台 (默认隐藏) -->
-        <div id="adminPanel" class="hidden mb-6 p-5 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-sm">
-            <div>
-                <h3 class="text-blue-800 font-bold text-sm mb-1">🛠️ 超级管理员 (Manager) 控制台</h3>
-                <p class="text-blue-600/70 text-xs">执行“T+1 离线重训”：吸收系统新增的注册用户和关注/取关连边，重新进化图神经网络。</p>
-            </div>
-            <button id="btn-admin-retrain" onclick="doAdminRetrain()" class="mt-3 md:mt-0 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition">
-                🚀 一键重训 GNN 模型 (吸收新数据)
-            </button>
-        </div>
-        <div id="globalStats" class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            <div class="col-span-2 lg:col-span-5 card-warm p-5 rounded-2xl flex items-center justify-center text-stone-400 text-sm loading-pulse">
-                正在同步全站社交网络数据...
-            </div>
-        </div>
-
-        <div id="resultsArea" class="hidden grid grid-cols-1 xl:grid-cols-4 gap-8">
-            <aside class="xl:col-span-1 space-y-6">
-                <!-- 推荐配置面板 -->
-                <div class="card-warm p-5 rounded-2xl">
-                    <h3 class="text-sm font-semibold text-stone-700 mb-4">⚙️ 推荐配置</h3>
-                    <div class="space-y-4 text-sm">
-                        <div>
-                            <label class="block text-stone-400 mb-2 text-xs">推荐模式</label>
-                            <div class="grid grid-cols-2 gap-1 bg-stone-50 p-1 rounded-xl border border-stone-100">
-                                <button id="mode-social" onclick="setMode('social')" class="px-2 py-2 rounded-lg text-xs font-medium transition tab-active bg-white shadow-sm">社交优化</button>
-                                <button id="mode-gnn" onclick="setMode('gnn')" class="px-2 py-2 rounded-lg text-xs font-medium transition text-stone-500">纯相似度</button>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-stone-400 mb-2 text-xs">指定圈层</label>
-                            <select id="communitySelect" class="w-full px-3 py-2 border border-stone-200 rounded-xl bg-white text-xs text-stone-600 outline-none focus:ring-1 focus:ring-amber-200">
-                                <option value="">不限社区</option>
-                            </select>
-                        </div>
-                        <button onclick="applyFilters()" class="w-full bg-stone-50 hover:bg-amber-50 hover:text-amber-800 border border-stone-200 text-stone-600 px-4 py-2.5 rounded-xl text-xs font-medium transition">
-                            重新生成推荐
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 社交雷达诊断报告 -->
-                <div id="diagnosticPanel" class="card-warm p-5 rounded-2xl hidden">
-                    <h3 class="text-sm font-semibold text-stone-700 mb-4">📡 社交雷达报告</h3>
-                    <div class="flex items-center gap-3 mb-4 p-3 bg-amber-50 rounded-xl">
-                        <div id="diagTitle" class="font-serif font-bold text-2xl text-amber-700 shrink-0"></div>
-                        <p id="diagDesc" class="text-xs text-stone-500 leading-relaxed"></p>
-                    </div>
-                    <div class="mb-3 h-60 flex items-center justify-center relative">
-                        <canvas id="communityChart"></canvas>
-                        <div class="absolute text-center pointer-events-none">
-                            <div class="text-2xl font-extrabold text-stone-700" id="diagConnCount">0</div>
-                            <div class="text-[10px] text-stone-400">总连接数</div>
-                        </div>
-                    </div>
-                    <!-- 【新增】微观星图按钮 -->
-                    <button onclick="openPersonalGraph()" class="w-full mb-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition shadow-lg flex items-center justify-center gap-2">
-                        <span>✨ 查看专属 AI 推荐星图</span>
-                    </button>
-                    <p class="text-[10px] text-stone-300 text-center mb-3">好友可能同时属于多个圈层</p>
-                    <div class="p-3 bg-amber-50 text-amber-900 rounded-xl text-xs leading-relaxed">
-                        <span class="font-semibold">AI 建议：</span><span id="diagAdvice"></span>
-                    </div>
-                </div>
-            </aside>
-
-            <section class="xl:col-span-3 space-y-6">
-                <div class="rounded-2xl overflow-hidden" style="background:linear-gradient(135deg,#2d2416,#5c3d1e)">
-                    <div class="p-6 flex items-center gap-4">
-                        <div class="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-                            <svg class="w-7 h-7 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zm-4 7a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        </div>
-                        <div>
-                            <p class="text-white/40 text-xs mb-1">正在分析</p>
-                            <h2 class="font-serif text-2xl font-bold text-white">学号 #<span id="displayUserId"></span></h2>
-                            <div id="displayUserInfo" class="flex flex-wrap gap-1.5 mt-2"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card-warm rounded-2xl overflow-hidden">
-                    <div class="border-b border-stone-100 flex text-sm font-medium">
-                        <button onclick="showTab('recommended')" id="tab-recommended" class="px-6 py-4 transition text-stone-400 hover:text-stone-700 tab-active">✨ AI 推荐</button>
-                        <button onclick="showTab('following')" id="tab-following" class="px-6 py-4 transition text-stone-400 hover:text-stone-700">关注 <span id="countFollowing" class="ml-1 text-xs opacity-50"></span></button>
-                        <button onclick="showTab('followers')" id="tab-followers" class="px-6 py-4 transition text-stone-400 hover:text-stone-700">粉丝 <span id="countFollowers" class="ml-1 text-xs opacity-50"></span></button>
-                    </div>
-                    <div id="tabContent_recommended" class="p-4">
-                        <div id="recommendList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-                    </div>
-                    <div id="tabContent_following" class="p-4 hidden">
-                        <div id="followingList" class="custom-scroll space-y-3 max-h-96 overflow-y-auto pr-1"></div>
-                    </div>
-                    <div id="tabContent_followers" class="p-4 hidden">
-                        <div id="followersList" class="custom-scroll space-y-3 max-h-96 overflow-y-auto pr-1"></div>
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <div id="emptyState" class="flex flex-col items-center justify-center py-24 text-stone-300 hidden">
-            <div class="text-6xl mb-4">🌅</div>
-            <p class="text-lg font-medium text-stone-500">正在加载你的社交档案...</p>
-        </div>
-        <div id="errorState" class="hidden flex flex-col items-center justify-center py-24">
-            <div class="w-16 h-16 bg-red-50 text-red-400 rounded-full flex items-center justify-center mb-4 text-2xl">⚠️</div>
-            <p class="text-lg font-semibold text-stone-700 mb-2">查询异常</p>
-            <p class="text-sm text-stone-400 mb-6" id="errorMessage"></p>
-        </div>
-    </main>
-</div>
-
-<!-- 引入分离的 JS -->
-<script src="/static/js/app.js"></script>
-</body>
-</html>
+    <!-- 引入各个页面模块 -->
+    {% include "landing.html" %}
+    {% include "auth.html" %}
+    {% include "dashboard.html" %}
+{% endblock %}

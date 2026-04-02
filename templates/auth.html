@@ -1,0 +1,114 @@
+<!-- 注册属性选择弹窗 (Modal - 默认隐藏) -->
+<div id="registrationOptionsModal" class="fixed inset-0 z-[100] hidden bg-black/80 backdrop-blur-sm">
+    <div class="min-h-screen flex items-center justify-center px-6 py-12">
+        <div class="glass-card rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto custom-scroll">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+                    <h2 class="text-white font-serif font-bold text-xl tracking-wide">完善个人信息</h2>
+                    <button onclick="closeRegistrationOptions()" class="text-white/60 hover:text-white transition bg-white/5 hover:bg-red-500 rounded-full p-1.5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <!-- 选项生成区 (由 JS 动态渲染) -->
+                <div class="space-y-5">
+                    <div>
+                        <label class="text-white/60 text-xs mb-2 block font-medium">性别</label>
+                        <div id="reg-gender-options" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                    <div>
+                        <label class="text-white/60 text-xs mb-2 block font-medium">年级</label>
+                        <div id="reg-grade-options" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                    <div>
+                        <label class="text-white/60 text-xs mb-2 block font-medium">专业</label>
+                        <div id="reg-major-options" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                    <div>
+                        <label class="text-amber-400/80 text-xs mb-2 block font-medium">爱好 (可多选)</label>
+                        <div id="reg-hobbies-options" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                    <div>
+                        <label class="text-amber-400/80 text-xs mb-2 block font-medium">个性标签 (可多选)</label>
+                        <div id="reg-tags-options" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-white/10">
+                    <p id="reg-options-error" class="text-xs text-red-300 hidden pb-2 text-center"></p>
+                    <p id="reg-options-success" class="text-xs text-emerald-300 hidden pb-2 text-center"></p>
+                    <button onclick="confirmRegistration()" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-900 font-bold py-3.5 rounded-xl text-sm transition shadow-[0_0_15px_rgba(245,158,11,0.4)]">
+                        确认注册并生成社交档案
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE 2: 登录注册主页面 -->
+<div id="page-auth" class="page hero-bg">
+    <div class="overlay-top absolute inset-0 pointer-events-none"></div>
+    <div style="background:linear-gradient(to top,rgba(5,5,15,0.7) 0%,transparent 60%)" class="absolute inset-0 pointer-events-none"></div>
+    
+    <!-- 返回导航 -->
+    <nav class="relative z-10 flex items-center px-8 md:px-16 pt-8">
+        <button onclick="Router.go('/')" class="flex items-center gap-2 text-white/60 hover:text-white transition text-sm bg-white/5 px-4 py-2 rounded-full hover:bg-white/10 backdrop-blur-md">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            返回首页
+        </button>
+    </nav>
+
+    <!-- 登录注册卡片 -->
+    <div class="relative z-10 min-h-screen flex items-center justify-center px-6 pb-20 pt-4">
+        <div class="glass-card rounded-3xl w-full max-w-sm overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+            <!-- Tab 切换栏 -->
+            <div class="flex p-4 pb-0 gap-2">
+                <button id="authTab-login" onclick="switchAuthTab('login')" class="auth-tab on flex-1 py-2.5 rounded-xl text-sm font-bold text-center tracking-wide">
+                    Log in
+                </button>
+                <button id="authTab-register" onclick="switchAuthTab('register')" class="auth-tab flex-1 py-2.5 rounded-xl text-sm font-bold text-center tracking-wide">
+                    Sign up
+                </button>
+            </div>
+
+            <!-- 表单区域 -->
+            <div class="relative px-6 pt-6 pb-8" style="min-height: 250px;">
+                
+                <!-- 登录表单 -->
+                <div id="authForm-login" class="form-panel space-y-4">
+                    <div>
+                        <input id="login-username" type="text" placeholder="用户名" class="glass-input w-full px-4 py-3.5 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/50">
+                    </div>
+                    <div>
+                        <!-- 加入了回车键监听防呆设计 -->
+                        <input id="login-password" type="password" placeholder="密码" class="glass-input w-full px-4 py-3.5 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/50" onkeypress="if(event.key==='Enter') doLogin()">
+                    </div>
+                    <p id="login-error" class="text-xs text-red-300 hidden text-center"></p>
+                    <button onclick="doLogin()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-bold py-3.5 rounded-xl text-sm transition shadow-md">
+                        立即登录
+                    </button>
+                </div>
+
+                <!-- 注册表单 (第一步) -->
+                <div id="authForm-register" class="form-panel hidden-form space-y-4">
+                    <div>
+                        <input id="reg-username" type="text" placeholder="设置用户名" class="glass-input w-full px-4 py-3.5 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/50">
+                    </div>
+                    <div>
+                        <!-- 加入了回车键监听防呆设计 -->
+                        <input id="reg-password" type="password" placeholder="设置密码" class="glass-input w-full px-4 py-3.5 rounded-xl text-sm focus:ring-2 focus:ring-amber-500/50" onkeypress="if(event.key==='Enter') showRegistrationOptions()">
+                    </div>
+                    <p id="reg-error" class="text-xs text-red-300 hidden text-center"></p>
+                    
+                    <button onclick="showRegistrationOptions()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-bold py-3.5 rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2">
+                        <span>下一步：完善资料</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                    <p class="text-white/40 text-[10px] text-center pt-2">注册即表示您同意校园社交网络规范</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
