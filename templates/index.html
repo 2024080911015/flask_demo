@@ -16,9 +16,59 @@
 <!-- 3D 图谱全屏弹窗 (Modal) -->
 <div id="graphModal" class="fixed inset-0 z-[100] hidden bg-black/90 backdrop-blur-sm transition-opacity">
     <button onclick="closeGraphModal()" class="absolute top-4 right-6 text-white bg-white/10 hover:bg-red-500 rounded-full p-2 z-[101] transition">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke="cap=" round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
     </button>
     <iframe id="graphIframe" src="" class="w-full h-full border-none"></iframe>
+</div>
+
+<!-- 注册属性选择弹窗 -->
+<div id="registrationOptionsModal" class="fixed inset-0 z-[100] hidden bg-black/80 backdrop-blur-sm">
+    <div class="min-h-screen flex items-center justify-center px-6 py-12">
+        <div class="glass-card rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-white font-bold text-lg">完善个人信息</h2>
+                    <button onclick="closeRegistrationOptions()" class="text-white/60 hover:text-white transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <!-- 性别选择 -->
+                <div class="mb-4">
+                    <label class="text-white/50 text-xs mb-2 block">性别</label>
+                    <div id="reg-gender-options" class="flex gap-2 flex-wrap"></div>
+                </div>
+
+                <!-- 年级选择 -->
+                <div class="mb-4">
+                    <label class="text-white/50 text-xs mb-2 block">年级</label>
+                    <div id="reg-grade-options" class="flex gap-2 flex-wrap"></div>
+                </div>
+
+                <!-- 专业选择 -->
+                <div class="mb-4">
+                    <label class="text-white/50 text-xs mb-2 block">专业</label>
+                    <div id="reg-major-options" class="flex gap-2 flex-wrap"></div>
+                </div>
+
+                <!-- 爱好选择（可多选） -->
+                <div class="mb-4">
+                    <label class="text-white/50 text-xs mb-2 block">爱好（可多选）</label>
+                    <div id="reg-hobbies-options" class="flex gap-2 flex-wrap"></div>
+                </div>
+
+                <!-- 标签选择（可多选） -->
+                <div class="mb-4">
+                    <label class="text-white/50 text-xs mb-2 block">标签（可多选）</label>
+                    <div id="reg-tags-options" class="flex gap-2 flex-wrap"></div>
+                </div>
+
+                <p id="reg-options-error" class="text-xs text-red-300 hidden pt-1"></p>
+                <p id="reg-options-success" class="text-xs text-emerald-300 hidden pt-1"></p>
+                <button onclick="confirmRegistration()" class="w-full mt-4 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">确认注册</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- PAGE 1: 首页 -->
@@ -76,10 +126,8 @@
                 <div id="authForm-register" class="form-panel hidden-form space-y-3">
                     <input id="reg-username" type="text" placeholder="用户名" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
                     <input id="reg-password" type="password" placeholder="密码" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
-                    <input id="reg-info" type="text" placeholder="简介（可选）如: 性别:男,专业:计算机,爱好:编程" class="glass-input w-full px-4 py-3 rounded-xl text-sm">
                     <p id="reg-error" class="text-xs text-red-300 hidden pt-1"></p>
-                    <p id="reg-success" class="text-xs text-emerald-300 hidden pt-1"></p>
-                    <button onclick="doRegister()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">Sign up</button>
+                    <button onclick="showRegistrationOptions()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-semibold py-3 rounded-xl text-sm transition shadow-sm">Sign up</button>
                 </div>
             </div>
         </div>

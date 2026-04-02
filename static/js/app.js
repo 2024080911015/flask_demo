@@ -2,22 +2,30 @@
 //  全局状态与权限管理
 // ==========================================
 const State = {
-    user: null,   
+    user: null,
     isAdmin: false, // 权限标识
     currentRecIds:[], // 暂存当前推荐列表的 ID，传给专属星图用
     myFollowingIds:[], // 新增：我的关注列表
     myFollowerIds:[],  // 新增：我的粉丝列表
-    
+    // 注册选项配置
+    selectedOptions: {
+        gender: null,
+        grade: null,
+        major: null,
+        hobbies: new Set(),
+        tags: new Set()
+    },
+
     setUser(u) {
         this.user = u;
         if (u) {
             document.getElementById('dashUsername').textContent = u.username;
             document.getElementById('dashUid').textContent = u.uid;
             document.getElementById('avatarInitial').textContent = u.username.charAt(0).toUpperCase();
-            
+
             // 【权限控制】：用户名为manager且id为0
             this.isAdmin = (u.uid === 0 && u.username === 'manager');
-            
+
             if (this.isAdmin) {
                 document.getElementById('searchContainer').classList.remove('hidden');
                 document.getElementById('adminBadge').classList.remove('hidden');
@@ -104,6 +112,29 @@ function switchAuthTab(tab) {
     document.getElementById('authTab-register').classList.toggle('on', !isLogin);
 }
 
+function showRegistrationOptions() {
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const errEl = document.getElementById('reg-error');
+    errEl.classList.add('hidden');
+    
+    if (!username || !password) { 
+        errEl.textContent = '用户名和密码不能为空'; 
+        errEl.classList.remove('hidden'); 
+        return; 
+    }
+    
+    document.getElementById('registrationOptionsModal').classList.remove('hidden');
+}
+
+function closeRegistrationOptions() {
+    document.getElementById('registrationOptionsModal').classList.add('hidden');
+}
+
+function confirmRegistration() {
+    doRegister();
+}
+
 async function doLogin() {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
@@ -126,20 +157,54 @@ async function doLogin() {
 async function doRegister() {
     const username = document.getElementById('reg-username').value.trim();
     const password = document.getElementById('reg-password').value;
-    const info = document.getElementById('reg-info').value.trim();
-    const errEl = document.getElementById('reg-error');
-    const sucEl = document.getElementById('reg-success');
+    const errEl = document.getElementById('reg-options-error');
+    const sucEl = document.getElementById('reg-options-success');
     errEl.classList.add('hidden'); sucEl.classList.add('hidden');
-    if (!username || !password) { errEl.textContent = '为空'; errEl.classList.remove('hidden'); return; }
+
+    if (!username || !password) { errEl.textContent = '用户名和密码不能为空'; errEl.classList.remove('hidden'); return; }
+
+    // 收集选择的属性
+    const options = State.selectedOptions;
+    if (!options.gender || !options.grade || !options.major) {
+        errEl.textContent = '请选择性别、年级和专业'; errEl.classList.remove('hidden'); return;
+    }
+
     try {
-        const body = { username, password }; if (info) body.info = info;
-        const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const body = {
+            username,
+            password,
+            gender: options.gender,
+            grade: options.grade,
+            major: options.major,
+            hobbies: Array.from(options.hobbies).join(' ') || '无',
+            tags: Array.from(options.tags).join(' ') || '萌新'
+        };
+
+        const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
         const data = await res.json();
         if (data.status === 'success') {
             sucEl.textContent = `注册成功！学号 ${data.data.uid}，即将跳转...`; sucEl.classList.remove('hidden');
-            setTimeout(() => switchAuthTab('login'), 1500);
+            setTimeout(() => {
+                closeRegistrationOptions();
+                switchAuthTab('login');
+                resetRegistrationOptions(); // 重置选项
+            }, 1500);
         } else { errEl.textContent = data.message || '注册失败'; errEl.classList.remove('hidden'); }
     } catch { errEl.textContent = '网络错误'; errEl.classList.remove('hidden'); }
+}
+
+// 重置注册选项
+function resetRegistrationOptions() {
+    State.selectedOptions.gender = null;
+    State.selectedOptions.grade = null;
+    State.selectedOptions.major = null;
+    State.selectedOptions.hobbies.clear();
+    State.selectedOptions.tags.clear();
+    renderRegistrationOptions();
 }
 
 async function doLogout() {
@@ -346,7 +411,77 @@ window.addEventListener('DOMContentLoaded', () => {
     fetchStats();
     fetchCommunities();
     checkLoginStatus();
+    renderRegistrationOptions();
 });
+
+// ==========================================
+//  注册选项配置和渲染
+// ==========================================
+const REGISTRATION_OPTIONS = {
+    gender: ['男', '女'],
+    grade: ['大一', '大二', '大三', '大四', '研一', '研二', '研三', '博士'],
+    major: ['计算机', '通信', '电气', '土木', '体育', '英语', '法学', '生物', '会计', '新闻', '美术'],
+    hobbies: ['足球', '羽毛球', '跑步', '骑行', '音乐', '舞蹈', '绘画', '剪纸', '缝纫', '种植', '围棋', '天文', '编程', '机械', '动漫'],
+    tags: ['运动达人', '温和', '可爱', '技术大牛', '宅属性', '社恐星人', '社交牛逼症', '镇圈大佬', '段子手', '早睡早起', '作息规律', '吃货', '社交普通型', '熬夜的神', '高冷', '萌新']
+};
+
+function renderRegistrationOptions() {
+    // 渲染性别选项（单选）
+    const genderContainer = document.getElementById('reg-gender-options');
+    genderContainer.innerHTML = REGISTRATION_OPTIONS.gender.map(g =>
+        `<button onclick="selectOption('gender', '${g}')" id="reg-gender-${g}"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition border ${State.selectedOptions.gender === g ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-white/10 border-white/20 text-white/60 hover:bg-white/20'}">
+            ${g}</button>`
+    ).join('');
+
+    // 渲染年级选项（单选）
+    const gradeContainer = document.getElementById('reg-grade-options');
+    gradeContainer.innerHTML = REGISTRATION_OPTIONS.grade.map(g =>
+        `<button onclick="selectOption('grade', '${g}')" id="reg-grade-${g}"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition border ${State.selectedOptions.grade === g ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-white/10 border-white/20 text-white/60 hover:bg-white/20'}">
+            ${g}</button>`
+    ).join('');
+
+    // 渲染专业选项（单选）
+    const majorContainer = document.getElementById('reg-major-options');
+    majorContainer.innerHTML = REGISTRATION_OPTIONS.major.map(m =>
+        `<button onclick="selectOption('major', '${m}')" id="reg-major-${m}"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition border ${State.selectedOptions.major === m ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-white/10 border-white/20 text-white/60 hover:bg-white/20'}">
+            ${m}</button>`
+    ).join('');
+
+    // 渲染爱好选项（多选）
+    const hobbiesContainer = document.getElementById('reg-hobbies-options');
+    hobbiesContainer.innerHTML = REGISTRATION_OPTIONS.hobbies.map(h =>
+        `<button onclick="toggleMultiOption('hobbies', '${h}')" id="reg-hobbies-${h}"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition border ${State.selectedOptions.hobbies.has(h) ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-white/10 border-white/20 text-white/60 hover:bg-white/20'}">
+            ${h}</button>`
+    ).join('');
+
+    // 渲染标签选项（多选）
+    const tagsContainer = document.getElementById('reg-tags-options');
+    tagsContainer.innerHTML = REGISTRATION_OPTIONS.tags.map(t =>
+        `<button onclick="toggleMultiOption('tags', '${t}')" id="reg-tags-${t}"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition border ${State.selectedOptions.tags.has(t) ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-white/10 border-white/20 text-white/60 hover:bg-white/20'}">
+            ${t}</button>`
+    ).join('');
+}
+
+// 单选选项处理
+function selectOption(type, value) {
+    State.selectedOptions[type] = value;
+    renderRegistrationOptions();
+}
+
+// 多选选项处理
+function toggleMultiOption(type, value) {
+    if (State.selectedOptions[type].has(value)) {
+        State.selectedOptions[type].delete(value);
+    } else {
+        State.selectedOptions[type].add(value);
+    }
+    renderRegistrationOptions();
+}
 // ==========================================
 //  管理员：重置所有数据接口
 // ==========================================
