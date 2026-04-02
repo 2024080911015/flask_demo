@@ -35,9 +35,29 @@ class UserInfo(db.Model):
     uid = db.Column(db.Integer, primary_key=True)
     info = db.Column(db.Text, nullable=False)
 
+# ================= 新增：好友分组模型 =================
+class FriendGroup(db.Model):
+    __tablename__ = 'friend_groups'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    uid = db.Column(db.Integer, nullable=False, index=True) # 谁创建的分组
+    name = db.Column(db.String(50), nullable=False)         # 分组名称
+
+class FriendMapping(db.Model):
+    __tablename__ = 'friend_mappings'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    uid = db.Column(db.Integer, nullable=False, index=True) # 归属人
+    target_uid = db.Column(db.Integer, nullable=False)      # 被分组的好友ID
+    group_id = db.Column(db.Integer, nullable=False)        # 所属分组ID
+# =====================================================
+
 # 初始化数据库表
+user_name_map = {} # 全局用户名映射字典
 with app.app_context():
     db.create_all()
+    # 启动时，把数据库里的所有用户名加载进内存，极速响应前端
+    accounts = Account.query.all()
+    for acc in accounts:
+        user_name_map[acc.uid] = acc.username
 
 print("Loading model...")       #加载user_embeddings.pt文件(好像没啥用，在step3_recommend.py里也加载了一次，暂时先放在这里，后续可以优化掉)   
 try:
@@ -121,145 +141,101 @@ def tuijian():
     
     rec_ids = step3_recommend.recommend_friends(sid, top_k=5, mode=mode, community=community_tag)
     
-    # 核心修改：返回带有 id 的字典
-    rec_data_list =[{"id": rid, "info": user_info_map.get(rid, f"未知")} for rid in rec_ids]
+    # 核心修改：返回带有 username 的字典
+    rec_data_list =[{"id": rid, "username": user_name_map.get(rid, f"User_{rid}"), "info": user_info_map.get(rid, f"未知")} for rid in rec_ids]
     
     return jsonify({
         "student_id": sid,
         "mode": mode,
         "student_info": user_info_map.get(sid, f"ID:{sid}"),
-        "recommend_friends": rec_data_list,  # 这里变成了字典数组
-        "recommend_ids": rec_ids, # 留给星图用
+        "recommend_friends": rec_data_list,
+        "recommend_ids": rec_ids,
         "count": len(rec_data_list)
     })
 
-    sid=request.args.get('id',default=None, type=int)
-    
-    mode=request.args.get('mode',default='social', type=str) #新增 mode 参数，默认 social
-    community_tag=request.args.get('community',default=None,type=str)
-    if sid is None:
-        return jsonify({"error": "Missing 'id' parameter"}), 400
-    rec_ids=step3_recommend.recommend_friends(sid,top_k=5, mode=mode, community=community_tag) #具体的推荐算法，来自step3_recommend.py
-    rec_info_list=[]         #根据ID来获取到信息（数据来源为users.csv）
-    for rec_id in rec_ids:
-        rec_info=user_info_map.get(rec_id,f"User {rec_id}")
-        rec_info_list.append(rec_info)
-    return jsonify({
-            "student_id": sid,
-            "mode": mode,
-            "student_info": user_info_map.get(sid, f"ID:{sid}"),
-            "recommend_friends": rec_info_list,
-            "recommend_ids": rec_ids,
-            "count": len(rec_info_list)
-        }) #返回推荐结果的JSON格式
-#返回所有用户信息的接口
 @app.route('/users')
 def get_users():
-    users_list=[]
-    for id,info in user_info_map.items():
-        users_list.append({
-            "student_id": id,
-            "student_info": info
-        })
+    users_list=[{"student_id": id, "username": user_name_map.get(id, f"User_{id}"), "student_info": info} for id,info in user_info_map.items()]
     return jsonify(users_list)    
-#根据ID返回用户信息的接口
+
+# ==========================================
+# 智能模糊搜索引擎接口 (支持 ID 和 Username)
+# ==========================================
+@app.route('/api/search_users')
+def search_users():
+    """根据关键字(学号或用户名)模糊搜索用户"""
+    query = request.args.get('q', '').strip().lower()
+    if not query:
+        return jsonify({"status": "success", "results": []})
+    
+    results =[]
+    # 遍历内存中的全校用户字典
+    for uid, username in user_name_map.items():
+        # 如果输入的刚好是学号，或者用户名里包含了输入的字
+        if query == str(uid) or query in username.lower():
+            results.append({
+                "id": uid,
+                "username": username,
+                "info": user_info_map.get(uid, "未知")
+            })
+            # 限制最多返回 50 条，防止搜个 'a' 把全校都拉出来卡死网页
+            if len(results) >= 50:
+                break
+                
+    return jsonify({"status": "success", "results": results})
+
 @app.route('/user')
 def get_user():
     sid=request.args.get('id',default=None, type=int)
-    if sid is None:
-        return jsonify({"error": "Missing 'id' parameter"}), 400
-    user_info=user_info_map.get(sid,f"User {sid}")
+    if sid is None: return jsonify({"error": "Missing id"}), 400
     return jsonify({
         "student_id": sid,
-        "student_info": user_info
+        "username": user_name_map.get(sid, f"User_{sid}"),
+        "student_info": user_info_map.get(sid,f"未知")
     })
-#获取用户的关注列表接口
-# 修改 2：关注列表接口
+
 @app.route('/following')
 def get_following():
     sid = request.args.get('id', default=None, type=int)
     if sid is None: return jsonify({"error": "Missing id"}), 400
     
     following_list = follow_dict.get(sid,[])
-    # 核心修改：返回带有 id 的字典
-    following_data_list = [{"id": fid, "info": user_info_map.get(fid, f"未知")} for fid in following_list]
-    
-    return jsonify({
-        "student_id": sid,
-        "count": len(following_data_list),
-        "following": following_data_list,
-    })
+    following_data_list =[{"id": fid, "username": user_name_map.get(fid, f"User_{fid}"), "info": user_info_map.get(fid, f"未知")} for fid in following_list]
+    return jsonify({"student_id": sid, "count": len(following_data_list), "following": following_data_list})
 
-    sid = request.args.get('id', default=None, type=int)
-    if sid is None:
-        return jsonify({"error": "Missing 'id' parameter"}), 400
-    following_list = follow_dict.get(sid, [])
-    following_list_info = []
-    for fid in following_list:
-        following_info = user_info_map.get(fid, f"User {fid}")
-        following_list_info.append(following_info)
-    return jsonify({
-        "student_id": sid,
-        "student_info": user_info_map.get(sid, f"ID:{sid}"),
-        "count": len(following_list_info),
-        "following": following_list_info,
-    })
-#获取用户的粉丝列表接口
-# 修改 3：粉丝列表接口
 @app.route('/followers')
 def get_followers():
     sid = request.args.get('id', default=None, type=int)
     if sid is None: return jsonify({"error": "Missing id"}), 400
 
     followers_list =[uid for uid, following in follow_dict.items() if sid in following]
-    # 核心修改：返回带有 id 的字典
-    followers_data_list =[{"id": fid, "info": user_info_map.get(fid, f"未知")} for fid in followers_list]
+    followers_data_list =[{"id": fid, "username": user_name_map.get(fid, f"User_{fid}"), "info": user_info_map.get(fid, f"未知")} for fid in followers_list]
+    return jsonify({"student_id": sid, "followers_count": len(followers_data_list), "followers": followers_data_list})
 
-    return jsonify({
-        "student_id": sid,
-        "followers_count": len(followers_data_list),
-        "followers": followers_data_list
-    })
-    sid = request.args.get('id', default=None, type=int)
-    if sid is None:
-        return jsonify({"error": "Missing 'id' parameter"}), 400
-
-    # 从 follow_dict 反向查找粉丝
-    followers_list = []
-    for user_id, following in follow_dict.items():
-        if sid in following:
-            followers_list.append(user_id)
-
-    followers_info_list = []
-    for fid in followers_list:
-        follower_info = user_info_map.get(fid, f"User {fid}")
-        followers_info_list.append(follower_info)
-
-    return jsonify({
-            "student_id": sid,
-            "followers_count": len(followers_list),
-            "followers": followers_info_list
-        }) 
-#返回整个社交网络的情况接口
 @app.route('/social/stats')
 def get_social_stats():
     total_users = len(user_info_map)
     total_follows = sum(len(following) for following in follow_dict.values())
     avg_follows = total_follows / total_users if total_users > 0 else 0
 
-    # 计算关注最多的用户
-    max_follows = 0
-    most_popular = []
-    for user_id, following in follow_dict.items():
-        if len(following) > max_follows:
-            max_follows = len(following)
-            most_popular = [user_id]
-        elif len(following) == max_follows:
-            most_popular.append(user_id)
-    most_popular_info=[]
-    for uid in most_popular:
-        info=user_info_map.get(uid,f"User {uid}")
-        most_popular_info.append(info)
+    follower_counts = {}
+    for uid, following in follow_dict.items():
+        for fid in following:
+            follower_counts[fid] = follower_counts.get(fid, 0) + 1
+            
+    top_users = sorted(follower_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    
+    most_popular_info =[]
+    for uid, count in top_users:
+        most_popular_info.append({
+            "id": uid, 
+            "username": user_name_map.get(uid, f"User_{uid}"), # 核心新增
+            "info": user_info_map.get(uid, f"未知"), 
+            "followers_count": count
+        })
+        
+    max_follows = max(follower_counts.values()) if follower_counts else 0
+
     return jsonify({
         "total_users": total_users,
         "total_follows": total_follows,
@@ -267,7 +243,7 @@ def get_social_stats():
         "max_follows": max_follows,
         "most_popular_users": most_popular_info
     })
-#社交诊断报告接口
+
 # ================= 新增：AI 社交诊断报告接口 =================
 @app.route('/social/report')
 def get_social_report():
@@ -440,6 +416,7 @@ def api_register():
             writer.writerow([new_uid, info])
 
         user_info_map[new_uid] = info
+        user_name_map[new_uid] = username
 
         return jsonify({
             "status": "success",
@@ -602,7 +579,125 @@ def toggle_follow():
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==========================================
+# 个人空间与好友分组 API (新增模块)
+# ==========================================
+@app.route('/api/user/update', methods=['POST'])
+def update_user_profile():
+    """个人空间：修改个人信息"""
+    if 'uid' not in session: return jsonify({"status": "error", "message": "未登录"}), 401
+    uid = session['uid']
+    data = request.json
     
+    new_username = data.get('username')
+    new_info = data.get('info')
+    
+    try:
+        acc = Account.query.get(uid)
+        user_info = UserInfo.query.get(uid)
+        
+        # 1. 更新用户名
+        if new_username and new_username != acc.username:
+            if Account.query.filter_by(username=new_username).first():
+                return jsonify({"status": "error", "message": "用户名已被占用"}), 400
+            acc.username = new_username
+            session['username'] = new_username
+            user_name_map[uid] = new_username
+            
+        # 2. 更新个人信息标签
+        if new_info:
+            user_info.info = new_info
+            global user_info_map
+            user_info_map[uid] = new_info
+            
+            # 同步更新 users.csv (为了凌晨 GNN 重训)
+            users_csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.csv")
+            df = pd.read_csv(users_csv_path)
+            df.loc[df['uid'] == uid, 'info'] = new_info
+            df.to_csv(users_csv_path, index=False, encoding='utf-8-sig')
+
+        db.session.commit()
+        return jsonify({"status": "success", "message": "个人信息修改成功！下次模型重训后生效。"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/groups', methods=['GET'])
+def get_friend_groups():
+    """获取当前用户的所有分组及分组内的好友"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    uid = session['uid']
+    
+    # 获取自定义分组
+    groups = FriendGroup.query.filter_by(uid=uid).all()
+    group_list = [{"id": g.id, "name": g.name} for g in groups]
+    
+    # 获取映射关系
+    mappings = FriendMapping.query.filter_by(uid=uid).all()
+    mapping_dict = {m.target_uid: m.group_id for m in mappings}
+    
+    return jsonify({"status": "success", "groups": group_list, "mappings": mapping_dict})
+
+@app.route('/api/groups/create', methods=['POST'])
+def create_friend_group():
+    """创建一个新分组"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    uid = session['uid']
+    group_name = request.json.get('name')
+    if not group_name: return jsonify({"status": "error", "message": "组名不能为空"}), 400
+    
+    new_group = FriendGroup(uid=uid, name=group_name)
+    db.session.add(new_group)
+    db.session.commit()
+    return jsonify({"status": "success", "group_id": new_group.id})
+
+@app.route('/api/groups/assign', methods=['POST'])
+def assign_friend_group():
+    """把好友移动到某个分组"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    uid = session['uid']
+    target_uid = request.json.get('target_id')
+    group_id = request.json.get('group_id') # 如果为 0，代表移回“默认分组”
+    
+    # 先删除旧的映射
+    FriendMapping.query.filter_by(uid=uid, target_uid=target_uid).delete()
+    
+    if group_id != 0:
+        new_mapping = FriendMapping(uid=uid, target_uid=target_uid, group_id=group_id)
+        db.session.add(new_mapping)
+        
+    db.session.commit()
+    return jsonify({"status": "success"})
+
+@app.route('/api/groups/rename', methods=['POST'])
+def rename_friend_group():
+    """重命名分组"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    group_id = request.json.get('group_id')
+    new_name = request.json.get('name')
+    if not new_name: return jsonify({"status": "error", "message": "组名不能为空"}), 400
+    
+    group = FriendGroup.query.filter_by(id=group_id, uid=session['uid']).first()
+    if group:
+        group.name = new_name
+        db.session.commit()
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error", "message": "分组不存在"}), 404
+
+@app.route('/api/groups/delete', methods=['POST'])
+def delete_friend_group():
+    """删除分组 (该组好友将自动回到默认分组)"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    group_id = request.json.get('group_id')
+    
+    # 1. 删除分组
+    FriendGroup.query.filter_by(id=group_id, uid=session['uid']).delete()
+    # 2. 删除该组的映射关系 (没有映射，前端自动归入默认分组)
+    FriendMapping.query.filter_by(group_id=group_id, uid=session['uid']).delete()
+    
+    db.session.commit()
+    return jsonify({"status": "success"})
 if __name__ == "__main__":
     # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
     app.run(host="0.0.0.0", port=5001, debug=True)
