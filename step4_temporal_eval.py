@@ -6,7 +6,7 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.utils import negative_sampling
 from sklearn.metrics import roc_auc_score
 
-print("⏳ 正在启动动态时间序列链路预测 (Temporal Link Prediction)...")
+print(" 正在启动动态时间序列链路预测 (Temporal Link Prediction)...")
 
 # ==========================================
 # 1. 加载数据与按时间切分 (Train/Test Split)
@@ -24,7 +24,7 @@ split_idx = int(total_edges * 0.8)
 train_edges_df = df_edges.iloc[:split_idx]
 test_edges_df = df_edges.iloc[split_idx:]
 
-print(f"📅 时间切分完毕:")
+print(f" 时间切分完毕:")
 print(f"   - 过去(训练集): {len(train_edges_df)} 条边 (用于学习社交规律)")
 print(f"   - 未来(测试集): {len(test_edges_df)} 条边 (用于验证能否预测未来)")
 
@@ -59,7 +59,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 # ==========================================
 # 3. 仅使用“过去的数据”进行训练
 # ==========================================
-print("\n🔥 开始基于【过去时间段】训练模型...")
+print("\n 开始基于【过去时间段】训练模型...")
 model.train()
 for epoch in range(1, 201):
     optimizer.zero_grad()
@@ -89,7 +89,7 @@ for epoch in range(1, 201):
 # ==========================================
 # 4. 在“未来的数据”上测试准确率 (AUC)
 # ==========================================
-print("\n🎯 正在评估模型预测【未来交友】的准确率 (ROC-AUC)...")
+print("\n 正在评估模型预测【未来交友】的准确率 (ROC-AUC)...")
 model.eval()
 with torch.no_grad():
     # 使用过去的边生成最终的特征向量
@@ -115,12 +115,12 @@ labels = np.concatenate([np.ones_like(pos_score), np.zeros_like(neg_score)])
 auc_score = roc_auc_score(labels, preds)
 
 print("========================================")
-print(f"🏆 动态时序预测测试完成！")
-print(f"📈 最终预测 AUC (准确率指标): {auc_score:.4f}")
+print(f" 动态时序预测测试完成！")
+print(f" 最终预测 AUC (准确率指标): {auc_score:.4f}")
 if auc_score > 0.8:
-    print("🌟 评价: 预测非常精准！模型成功学到了校园社交随时间演化的规律！")
+    print(" 评价: 预测非常精准！模型成功学到了校园社交随时间演化的规律！")
 elif auc_score > 0.7:
-    print("👍 评价: 效果不错！模型能捕捉到基本的交友趋势。")
+    print(" 评价: 效果不错！模型能捕捉到基本的交友趋势。")
 else:
-    print("🤔 评价: 效果一般，可能需要调整模型结构或数据。")
+    print(" 评价: 效果一般，可能需要调整模型结构或数据。")
 print("========================================")

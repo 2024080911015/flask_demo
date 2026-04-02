@@ -5,6 +5,8 @@ const State = {
     user: null,   
     isAdmin: false, // 权限标识
     currentRecIds:[], // 暂存当前推荐列表的 ID，传给专属星图用
+    myFollowingIds:[], // 新增：我的关注列表
+    myFollowerIds:[],  // 新增：我的粉丝列表
     
     setUser(u) {
         this.user = u;
@@ -13,16 +15,17 @@ const State = {
             document.getElementById('dashUid').textContent = u.uid;
             document.getElementById('avatarInitial').textContent = u.username.charAt(0).toUpperCase();
             
-            // 【权限控制】：假设 test1 账号（或 uid=1）是管理员
-            this.isAdmin = (u.uid === 1 || u.username === 'test1');
+            // 【权限控制】：用户名为manager且id为0
+            this.isAdmin = (u.uid === 0 && u.username === 'manager');
             
             if (this.isAdmin) {
                 document.getElementById('searchContainer').classList.remove('hidden');
                 document.getElementById('adminBadge').classList.remove('hidden');
-                document.getElementById('searchInput').value = u.uid;
+                document.getElementById('adminPanel').classList.remove('hidden'); // 显示控制台
             } else {
                 document.getElementById('searchContainer').classList.add('hidden');
                 document.getElementById('adminBadge').classList.add('hidden');
+                document.getElementById('adminPanel').classList.add('hidden'); // 隐藏控制台
             }
         }
     }
@@ -228,6 +231,12 @@ async function searchUser(explicitId = null) {
         
         const[rd, fd, fod] = await Promise.all([r2.json(), r3.json(), r4.json()]);
 
+        // 【新增逻辑】如果是看自己的主页，更新自己的社交关系状态
+        if (State.user && sid == State.user.uid) {
+            State.myFollowingIds = fd.following.map(f => parseInt(f.id));
+            State.myFollowerIds = fod.followers.map(f => parseInt(f.id));
+        }
+
         // 保存当次推荐的 ID 列表，给微观星图使用
         State.currentRecIds = td.recommend_ids ||[];
 
@@ -245,11 +254,14 @@ async function searchUser(explicitId = null) {
                 const t = parseInfoTags(item.info);
                 rc.innerHTML += `<div class="p-5 rounded-xl border border-stone-100 hover:border-amber-200 hover:bg-amber-50/30 transition group cursor-pointer">
                     <div class="flex justify-between items-start mb-3">
-                        <div class="flex flex-wrap gap-1.5">
+                        <div class="flex flex-wrap gap-1.5 items-center">
                             <span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">ID: ${item.id}</span>
                             ${t.basic}
                         </div>
-                        <span class="font-serif text-xl font-bold text-stone-200 group-hover:text-amber-400 transition">#${i+1}</span>
+                        <div class="flex items-center gap-3">
+                            ${getFollowButtonHTML(item.id)} <!-- 新增按钮 -->
+                            <span class="font-serif text-xl font-bold text-stone-200 group-hover:text-amber-400 transition">#${i+1}</span>
+                        </div>
                     </div>
                     <div class="flex flex-wrap gap-1">${t.hobbies}</div>
                 </div>`;
@@ -279,10 +291,13 @@ function renderRelationList(type, list) {
     list.forEach(item => {
         // 后端现在返回的是 {id: xxx, info: "xxx"}
         const t = parseInfoTags(item.info);
-        c.innerHTML += `<div class="p-3 rounded-xl border border-stone-100 text-xs flex items-center gap-2 hover:bg-stone-50 transition">
-            <div class="font-bold text-amber-600 shrink-0 w-12">ID: ${item.id}</div>
-            <div class="flex gap-1 shrink-0">${t.basic}</div>
-            <div class="flex flex-wrap gap-0.5">${t.hobbies}</div>
+        c.innerHTML += `<div class="p-3 rounded-xl border border-stone-100 text-xs flex items-center justify-between hover:bg-stone-50 transition">
+            <div class="flex items-center gap-2">
+                <div class="font-bold text-amber-600 shrink-0 w-12">ID: ${item.id}</div>
+                <div class="flex gap-1 shrink-0">${t.basic}</div>
+                <div class="flex flex-wrap gap-0.5">${t.hobbies}</div>
+            </div>
+            ${getFollowButtonHTML(item.id)} <!-- 新增按钮 -->
         </div>`;
     });
 }
@@ -332,3 +347,88 @@ window.addEventListener('DOMContentLoaded', () => {
     fetchCommunities();
     checkLoginStatus();
 });
+// ==========================================
+//  管理员：重置所有数据接口
+// ==========================================
+async function doAdminRetrain() {
+    if (!confirm("⚙️ 确认执行手动重训吗？\n\n系统将读取最新的 users.csv 和 edges_time.csv，重新计算 52 维特征，重新训练 GCN 模型，并更新 3D 星系图。\n（整个过程约需 10-30 秒）")) return;
+    
+    const btn = document.getElementById('btn-admin-retrain');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ 正在重构特征与训练模型...";
+    btn.disabled = true;
+    
+    try {
+        const res = await fetch('/api/admin/retrain', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert("🎉 " + data.message);
+            location.reload(); // 刷新页面，查看全新的网络！
+        } else {
+            alert("❌ 失败：" + data.message);
+        }
+    } catch (err) {
+        alert("❌ 请求异常，请检查 Python 后端终端报错");
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+// ==========================================
+//  互动功能：生成关注按钮 HTML
+// ==========================================
+function getFollowButtonHTML(targetId) {
+    if (!State.user || targetId == State.user.uid) return ''; // 未登录或自己不显示按钮
+    
+    const tid = parseInt(targetId); // 核心修复：强制转为数字
+    const isFollowing = State.myFollowingIds.includes(tid);
+    const isFollower = State.myFollowerIds.includes(tid);
+    
+    if (isFollowing) {
+        return `<button onclick="toggleFollow(this, ${tid})" data-status="unfollow" class="px-3 py-1.5 bg-stone-100 hover:bg-red-50 text-stone-500 hover:text-red-500 rounded-lg text-xs font-medium transition border border-stone-200">取消关注</button>`;
+    } else if (isFollower) {
+        return `<button onclick="toggleFollow(this, ${tid})" data-status="follow" class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg text-xs font-medium transition border border-amber-200">回关</button>`;
+    } else {
+        return `<button onclick="toggleFollow(this, ${tid})" data-status="follow" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-medium transition border border-blue-100">关注</button>`;
+    }
+}
+
+// ==========================================
+//  互动功能：点击关注/取关逻辑 (乐观更新)
+// ==========================================
+async function toggleFollow(btn, targetId) {
+    btn.disabled = true;
+    const currentStatus = btn.getAttribute('data-status');
+    const action = currentStatus === 'follow' ? 'follow' : 'unfollow';
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="animate-pulse">...</span>';
+    
+    try {
+        const res = await fetch('/api/social/toggle_follow', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ target_id: targetId, action: action })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            // 本地状态更新 (乐观更新 UI)
+            if (action === 'follow') {
+                State.myFollowingIds.push(targetId);
+                btn.setAttribute('data-status', 'unfollow');
+                btn.className = "px-3 py-1.5 bg-stone-100 hover:bg-red-50 text-stone-500 hover:text-red-500 rounded-lg text-xs font-medium transition border border-stone-200";
+                btn.innerText = "取消关注";
+            } else {
+                State.myFollowingIds = State.myFollowingIds.filter(id => id !== targetId);
+                btn.setAttribute('data-status', 'follow');
+                if (State.myFollowerIds.includes(targetId)) {
+                    btn.className = "px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg text-xs font-medium transition border border-amber-200";
+                    btn.innerText = "回关";
+                } else {
+                    btn.className = "px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-medium transition border border-blue-100";
+                    btn.innerText = "关注";
+                }
+            }
+        } else { alert("操作失败：" + data.message); btn.innerHTML = originalHtml; }
+    } catch (e) { alert("网络异常"); btn.innerHTML = originalHtml; }
+    btn.disabled = false;
+}

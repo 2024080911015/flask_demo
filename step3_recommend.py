@@ -3,13 +3,13 @@ import torch.nn.functional as F
 import pandas as pd
 import os
 
-print("🚀 启动时序图推荐推理引擎...")
+print(" 启动时序图推荐推理引擎...")
 
 # 1. 加载模型产出的嵌入向量
 try:
     embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
 except FileNotFoundError:
-    print("❌ 找不到 user_embeddings.pt")
+    print(" 找不到 user_embeddings.pt")
     exit()
 
 # 2. 安全加载用户信息
@@ -22,29 +22,38 @@ except UnicodeDecodeError:
 user_info_map = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
 
 #加载用户关注列表的函数
+# ==========================================
+# 修改版：加载最新的时间序列关注列表
+# ==========================================
 def load_social_data():
-    """加载社交网络数据"""
+    """加载社交网络数据 (统一使用最新的 edges_time.csv)"""
     try:
-        # 加载 edges.csv (关注关系)
-        edges_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'edges.csv')
+        # 核心修改 1：把 edges.csv 换成最新的 edges_time.csv
+        edges_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'edges_time.csv')
         df_edges = pd.read_csv(edges_path)
-        # 构建关注字典: {user_id: [following_ids]}
+        
         follow_dict = {}
+        # 核心修改 2：解析新表格的逻辑 (一行只有一条记录)
         for idx, row in df_edges.iterrows():
-            user_id = row['source']
-            # 将target列按|分割成列表
-            following_ids = list(map(int, str(row['target']).split('|')))
-            follow_dict[user_id] = following_ids
+            user_id = int(row['source_id'])
+            target_id = int(row['target_id'])
+            
+            if user_id not in follow_dict:
+                follow_dict[user_id] =[]
+            
+            # 把关注的人加进列表里
+            if target_id not in follow_dict[user_id]:
+                follow_dict[user_id].append(target_id)
 
-        print(f"✅ 加载了 {len(follow_dict)} 个用户的关注关系")
-
+        print(f" 成功从 edges_time.csv 加载了 {len(follow_dict)} 个用户的关注关系！")
         return follow_dict
 
     except Exception as e:
-        print(f"⚠️  加载社交网络数据失败: {e}")
+        print(f"  加载社交网络数据失败: {e}")
         return {}
 
-follow_dict=load_social_data()
+follow_dict = load_social_data()
+
 
 # 获取用户关注列表的接口函数
 def get_following(user_id):
@@ -146,14 +155,14 @@ def recommend_friends(user_id, top_k=5, mode="social", community=None):
 if __name__ == "__main__":
     while True:
         try:
-            val = input("\n👉 请输入学生ID (1-1000) (输入 q 退出): ")
+            val = input("\n 请输入学生ID (1-1000) (输入 q 退出): ")
             if val.lower() == 'q': break
             uid = int(val)
             
             print(f"\n🔍 [学生 {uid}] 的档案: {user_info_map.get(uid, '未知')}")
             recs = recommend_friends(uid)
-            print("✨ 依据最新时间演化图，为您推荐：")
+            print(" 依据最新时间演化图，为您推荐：")
             for rid in recs:
                 print(f"   ➤ ID: {rid:03d} | {user_info_map.get(rid, '未知')}")
         except Exception as e:
-            print("❌ 输入有误或用户不存在。")
+            print(" 输入有误或用户不存在。")

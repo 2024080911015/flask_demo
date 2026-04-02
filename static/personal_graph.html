@@ -7,7 +7,7 @@
     body { margin: 0; background-color: #050510; font-family: sans-serif; overflow: hidden;}
     .node-tooltip { background: rgba(15,23,42,0.9); border: 1px solid #334155; border-radius: 6px; padding: 12px; color: white;}
     .node-tooltip .name { font-weight: bold; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 5px;}
-    /* 修改了图例位置：放到了左下角，并且加了说明 */
+    .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; vertical-align: middle; }
     #legend {
       position: absolute; bottom: 30px; left: 30px; background: rgba(30,41,59,0.85); backdrop-filter: blur(10px);
       border-radius: 10px; padding: 15px; color: white; border: 1px solid #475569; font-size: 14px; z-index: 10;
@@ -22,22 +22,19 @@
 </head>
 <body>
   <div id="loading">🚀 正在呼叫 GNN 算法计算推荐...</div>
-  
-  <!-- 新版左下角图例 -->
   <div id="legend">
     <div style="font-weight: bold; color: #38bdf8; margin-bottom: 8px; border-bottom: 1px solid #475569; padding-bottom: 5px;">图谱说明</div>
     <div>🟡 <span style="color:#fbbf24; font-weight:bold;">中心节点 (当前用户)</span></div>
     <div>🔵 <span style="color:#3b82f6;">真实连边 (现有好友)</span></div>
     <div>✨ <span style="color:#00ffcc; font-weight:bold;">预测连边 (算法推荐好友)</span></div>
-    <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">* 推荐结果会随左侧【推荐配置】实时改变</div>
+    <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">* 悬停可查看是关注还是粉丝</div>
   </div>
-
   <div id="3d-graph"></div>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const centerUid = String(urlParams.get('uid')); // 强制转为字符串
-    const recIdsStr = urlParams.get('recs') ? urlParams.get('recs').split(',').map(String) :[]; // 强制转为字符串数组
+    const centerUid = String(urlParams.get('uid'));
+    const recIdsStr = urlParams.get('recs') ? urlParams.get('recs').split(',').map(String) :[];
 
     if (!centerUid || centerUid === 'null') {
       document.getElementById('loading').innerText = "❌ 缺少 uid 参数！";
@@ -49,28 +46,34 @@
           document.getElementById('loading').style.display = 'none';
 
           let adjacencyList = {};
+          const followingSet = new Set(); // 我关注了谁
+          const followerSet = new Set();  // 谁关注了我
+
           graphData.nodes.forEach(n => adjacencyList[String(n.id)] = new Set());
+          
           graphData.links.forEach(l => {
             const s = String(l.source.id || l.source);
             const t = String(l.target.id || l.target);
+            
+            // 构建无向邻接表（用于筛出1度好友）
             if (adjacencyList[s] && adjacencyList[t]) {
               adjacencyList[s].add(t); adjacencyList[t].add(s);
             }
+            // 构建有向关系（用于判断关注/粉丝）
+            if (s === centerUid) followingSet.add(t);
+            if (t === centerUid) followerSet.add(s);
           });
 
-          // 挑选节点
           const existingFriends = Array.from(adjacencyList[centerUid] || []);
           const keepIds = new Set([centerUid, ...existingFriends, ...recIdsStr]);
           
           const filteredNodes = graphData.nodes.filter(n => keepIds.has(String(n.id)));
           const filteredLinks = graphData.links.filter(l => keepIds.has(String(l.source)) && keepIds.has(String(l.target)));
 
-          // 核心修复：强制给所有推荐的 ID 连上虚拟发光线！
           recIdsStr.forEach(rid => {
             filteredLinks.push({ source: centerUid, target: rid, isVirtual: true });
           });
 
-          // 渲染
           const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
             .backgroundColor('#050510')
             .nodeRelSize(5)
@@ -91,7 +94,33 @@
             .linkDirectionalParticles(link => link.isVirtual ? 4 : 0) 
             .linkDirectionalParticleSpeed(0.006)
             .linkDirectionalParticleColor(() => '#ffffff')
-            .nodeLabel(node => `<div class="node-tooltip"><div class="name">👤 ${node.name} 【${node.community||'未知'}】</div>${(node.info||'').replace(/,/g, '<br/>')}</div>`)
+            .nodeLabel(node => {
+              const nid = String(node.id);
+              let relationTag = "";
+              
+              // 核心修改：精细化标签判断
+              if (nid === centerUid) {
+                  relationTag = "<span class='badge' style='color:#fbbf24; border:1px solid #fbbf24;'>👉 你自己</span>";
+              } else if (recIdsStr.includes(nid)) {
+                  relationTag = "<span class='badge' style='color:#00ffcc; border:1px solid #00ffcc;'>✨ AI推荐</span>";
+              } else {
+                  const isFollowing = followingSet.has(nid);
+                  const isFollower = followerSet.has(nid);
+                  if (isFollowing && isFollower) {
+                      relationTag = "<span class='badge' style='color:#ec4899; border:1px solid #ec4899;'>🤝 互相关注</span>";
+                  } else if (isFollowing) {
+                      relationTag = "<span class='badge' style='color:#3b82f6; border:1px solid #3b82f6;'>👀 你的关注</span>";
+                  } else if (isFollower) {
+                      relationTag = "<span class='badge' style='color:#10b981; border:1px solid #10b981;'>🌟 你的粉丝</span>";
+                  }
+              }
+
+              return `
+              <div class="node-tooltip">
+                <div class="name">👤 ${node.name} 【${node.community||'未知'}】 ${relationTag}</div>
+                <div class="info">${(node.info||'').replace(/,/g, '<br/>')}</div>
+              </div>`;
+            })
             .graphData({ nodes: filteredNodes, links: filteredLinks });
 
           setTimeout(() => Graph.cameraPosition({ z: 180 }, null, 2000), 500);
