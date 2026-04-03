@@ -929,6 +929,11 @@ window.toggleFollow = async function(btn, targetId) {
             }
             // 重新渲染按钮形态
             btn.outerHTML = getFollowButtonHTML(targetId);
+            
+            // 触发列表刷新
+            if (typeof loadRelations === 'function') {
+                loadRelations();
+            }
         } else { alert("操作失败：" + data.message); btn.innerHTML = originalHtml; }
     } catch (e) { alert("网络异常"); btn.innerHTML = originalHtml; }
     btn.disabled = false;
