@@ -31,22 +31,53 @@
   </div>
   <div id="3d-graph"></div>
 
-  <script>
+  <script type="module">
+    import * as THREE from 'https://esm.sh/three';
+    import { UnrealBloomPass } from 'https://esm.sh/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+
     let fullData = { nodes: [], links:[] };
     const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
       .jsonUrl('/static/graph.json?t=' + Math.random())
-      .backgroundColor('#0f172a')
+      .backgroundColor('#000005') // 更深邃的星空背色
       .nodeRelSize(4)
       .nodeVal(node => Math.sqrt(node.val || 1) * 0.8)
       .nodeAutoColorBy('community')
+      .nodeOpacity(0.8)
+      .nodeResolution(8) // 降低复杂度提升性能
       .nodeLabel(node => `<div class="node-tooltip"><div class="name">👤 ${node.name} 【${node.community||'未知'}】</div>${(node.info||'').replace(/,/g, '<br/>')}</div>`)
-      .linkColor(() => 'rgba(148, 163, 184, 0.25)')
-      .linkWidth(0.6)
+      .linkColor(() => 'rgba(255, 255, 255, 0.05)') // 大幅降低连线亮度
+      .linkWidth(0.2)
+      // 在节点/连线破千的情况下，默认关闭全局流星，只为特定强调情况保留或用极少的粒子
+      .linkDirectionalParticles(0) 
       .onEngineStop(() => Graph.zoomToFit(400));
+
+    // 添加 Bloom 发光效果：动态平衡“太亮”与“不亮”
+    const bloomPass = new UnrealBloomPass();
+    bloomPass.threshold = 0.4; // 关键：降低该值让大多数节点都能起效（原为0.6过高）
+    bloomPass.strength = 1.2;  // 光晕强度：从极弱0.6拉回到中等1.2，太亮可降低该值
+    bloomPass.radius = 0.4;    // 扩散范围：从中等0.4起步，越小越清晰，越大越朦胧散光
+    Graph.postProcessingComposer().addPass(bloomPass);
+
+    // 添加静态背景星空
+    const starGeometry = new THREE.BufferGeometry();
+    const starCount = 3000;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i++) {
+        starPositions[i] = (Math.random() - 0.5) * 1000;
+    }
+    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.7,
+        transparent: true,
+        opacity: 0.8
+    });
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    Graph.scene().add(stars);
 
     fetch('/static/graph.json').then(res => res.json()).then(data => fullData = data);
 
-    function filterByCommunity() {
+    window.filterByCommunity = function() { // 因为使用了module，需挂载到window
       const comm = document.getElementById('community-select').value;
       if (comm === "ALL") { Graph.graphData(fullData); return; }
       
@@ -55,7 +86,7 @@
       const filteredLinks = fullData.links.filter(l => nodeIds.has(l.source.id || l.source) && nodeIds.has(l.target.id || l.target));
       
       Graph.graphData({ nodes: filteredNodes, links: filteredLinks });
-    }
+    };
     window.addEventListener('resize', () => { Graph.width(window.innerWidth); Graph.height(window.innerHeight); });
   </script>
 </body>
