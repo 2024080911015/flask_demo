@@ -37,7 +37,7 @@ const State = {
             const data = await res.json();
             const el = document.getElementById(elementId);
             if (el) {
-                // 有头像则显示，没有则保持默认（首字母）
+                // 有头像则显示，没有则恢复默认（首字母）
                 if (data.avatar) {
                     if (isBg) {
                         el.style.backgroundImage = `url(/static/avatars/${data.avatar}?uid=${uid})`;
@@ -45,8 +45,12 @@ const State = {
                         el.style.backgroundPosition = 'center';
                         el.textContent = '';
                     }
+                } else {
+                    // 没有头像时，清除背景图片，恢复默认样式
+                    if (isBg) {
+                        el.style.backgroundImage = 'none';
+                    }
                 }
-                // 没有头像时不做任何处理，保持默认的样式和首字母
             }
         } catch (e) {}
     }
