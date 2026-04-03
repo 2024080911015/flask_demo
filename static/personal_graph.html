@@ -79,27 +79,32 @@
 
           const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
             .backgroundColor('#02020a')
-            .nodeRelSize(6)
+            .nodeRelSize(4)
             .nodeOpacity(0.9)
             .nodeResolution(8)
             .nodeColor(node => {
               const nid = String(node.id);
-              if (nid === centerUid) return '#ffaa00'; // 降低纯黄色的亮面，改用更柔和的橙黄
-              if (recIdsStr.includes(nid)) return '#00cccc'; // 降低预测连边的纯青色，改用稍深的青
-              return '#4488dd'; // 稍微深一点的蓝，避免成片发白
+              if (nid === centerUid) return '#fbbf24'; // 你自己
+              if (recIdsStr.includes(nid)) return '#00ffcc'; // AI推荐
+              const isFollowing = followingSet.has(nid);
+              const isFollower = followerSet.has(nid);
+              if (isFollowing && isFollower) return '#ec4899'; // 互相关注
+              if (isFollowing) return '#3b82f6'; // 你的关注
+              if (isFollower) return '#10b981'; // 你的粉丝
+              return '#4488dd'; // 其他
             })
             .nodeVal(node => {
               const nid = String(node.id);
-              if (nid === centerUid) return 25;
-              if (recIdsStr.includes(nid)) return 18;
-              return 8;
+              if (nid === centerUid) return 12; // 缩小中心节点
+              if (recIdsStr.includes(nid)) return 8; // 缩小推荐节点
+              return 4; // 缩小其他默认节点
             })
-            .linkColor(link => link.isVirtual ? 'rgba(0, 200, 200, 0.4)' : 'rgba(68, 136, 221, 0.1)') // 降低整体连线透明度
+            .linkColor(link => link.isVirtual ? 'rgba(0, 255, 204, 0.5)' : 'rgba(68, 136, 221, 0.15)') // 调整颜色对比，保留推荐边绿色特征
             .linkWidth(link => link.isVirtual ? 1.5 : 0.2)
             .linkDirectionalParticles(link => link.isVirtual ? 4 : 0) // 仅保留关键路径的粒子，减少画面混乱
             .linkDirectionalParticleSpeed(0.008)
             .linkDirectionalParticleWidth(1.2)
-            .linkDirectionalParticleColor(() => '#ffffff')
+            .linkDirectionalParticleColor(link => link.isVirtual ? '#00ffcc' : '#ffffff') // 让推荐边粒子也呈现专属发光绿
             .nodeLabel(node => {
               const nid = String(node.id);
               let relationTag = "";
@@ -131,9 +136,9 @@
 
           // 核心效果1：Bloom 发光效果（动态平衡亮度与层次）
           const bloomPass = new UnrealBloomPass();
-          bloomPass.threshold = 0.2;  // 阈值调低：让普通节点也能触发光晕
-          bloomPass.strength = 1.3;   // 光晕强度：中等强度，觉得还亮可以改为 0.8或1.0
-          bloomPass.radius = 0.3;     // 发散半径：小范围点亮，不大面积串光
+          bloomPass.threshold = 0.3;  // 提高阈值：避免过亮导致颜色泛白不分
+          bloomPass.strength = 1.0;   // 调弱光晕强度：保留颜色本貌，区分蓝绿
+          bloomPass.radius = 0.2;     // 缩小发散半径：防止颜色串光
           Graph.postProcessingComposer().addPass(bloomPass);
 
           // 核心效果2：静态背景星空（大量离散小粒子作为背景）
@@ -161,7 +166,7 @@
               x: Math.sin(angle) * 180,
               z: Math.cos(angle) * 180,
               y: 20
-            }, { x: 0, y: 0, z: 0 }, 100);
+            }, { x: 0, y: 0, z: 0 }); // 去掉 100ms 过渡时间，因为每帧都在更新，过渡会导致画面振动抖动
             requestAnimationFrame(autoRotate);
           }
           autoRotate();
