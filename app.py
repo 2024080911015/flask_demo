@@ -28,6 +28,7 @@ class Account(db.Model):
     uid = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True) # 加上索引加速登录查询
     password_hash = db.Column(db.String(255), nullable=False)
+    avatar = db.Column(db.String(255), nullable=True)  # 头像文件名
 
 # 定义用户信息模型
 class UserInfo(db.Model):
@@ -188,10 +189,14 @@ def search_users():
 def get_user():
     sid=request.args.get('id',default=None, type=int)
     if sid is None: return jsonify({"error": "Missing id"}), 400
+    # 获取用户头像
+    account = Account.query.get(sid)
+    avatar = account.avatar if account else None
     return jsonify({
         "student_id": sid,
         "username": user_name_map.get(sid, f"User_{sid}"),
-        "student_info": user_info_map.get(sid,f"未知")
+        "student_info": user_info_map.get(sid,f"未知"),
+        "avatar": avatar
     })
 
 @app.route('/following')
@@ -690,14 +695,181 @@ def delete_friend_group():
     """删除分组 (该组好友将自动回到默认分组)"""
     if 'uid' not in session: return jsonify({"status": "error"}), 401
     group_id = request.json.get('group_id')
-    
+
     # 1. 删除分组
     FriendGroup.query.filter_by(id=group_id, uid=session['uid']).delete()
     # 2. 删除该组的映射关系 (没有映射，前端自动归入默认分组)
     FriendMapping.query.filter_by(group_id=group_id, uid=session['uid']).delete()
-    
+
     db.session.commit()
     return jsonify({"status": "success"})
+
+# ==========================================
+# 头像上传与访问 API
+# ==========================================
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/user/upload_avatar', methods=['POST'])
+def upload_avatar():
+    """上传用户头像"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+
+    uid = session['uid']
+
+    # 检查是否有文件
+    if 'avatar' not in request.files:
+        return jsonify({"status": "error", "message": "没有上传文件"}), 400
+
+    file = request.files['avatar']
+
+    # 检查文件名
+    if file.filename == '':
+        return jsonify({"status": "error", "message": "未选择文件"}), 400
+
+    # 检查文件类型
+    if not allowed_file(file.filename):
+        return jsonify({"status": "error", "message": "不支持的文件格式，仅支持: png, jpg, jpeg, gif, webp"}), 400
+
+    # 检查文件大小
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+
+    if file_size > MAX_FILE_SIZE:
+        return jsonify({"status": "error", "message": f"文件过大，最大支持 {MAX_FILE_SIZE // (1024*1024)}MB"}), 400
+
+    try:
+        # 生成文件名：uid_原文件名 (例如: 1001_avatar.jpg)
+        file_ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uid}_avatar.{file_ext}"
+
+        # 保存文件
+        avatars_dir = os.path.join(current_dir, 'static', 'avatars')
+        filepath = os.path.join(avatars_dir, filename)
+
+        # 确保目录存在
+        os.makedirs(avatars_dir, exist_ok=True)
+
+        file.save(filepath)
+
+        # 删除旧头像（如果存在且文件名不同）
+        account = Account.query.get(uid)
+        if account and account.avatar and account.avatar != filename:
+            old_filepath = os.path.join(avatars_dir, account.avatar)
+            if os.path.exists(old_filepath):
+                try:
+                    os.remove(old_filepath)
+                except Exception as e:
+                    print(f"删除旧头像失败: {e}")
+
+        # 更新数据库
+        if not account:
+            account = Account(uid=uid, username=f"User_{uid}", password_hash=generate_password_hash("default"))
+            db.session.add(account)
+
+        account.avatar = filename
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "头像上传成功",
+            "avatar": filename
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": f"上传失败: {str(e)}"}), 500
+
+@app.route('/api/user/avatar', methods=['GET'])
+def get_avatar():
+    """获取当前用户的头像信息"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+
+    uid = session['uid']
+    account = Account.query.get(uid)
+
+    return jsonify({
+        "status": "success",
+        "avatar": account.avatar if account else None
+    })
+
+@app.route('/api/user/avatar/<int:uid>', methods=['GET'])
+def get_user_avatar(uid):
+    """获取指定用户的头像信息"""
+    account = Account.query.get(uid)
+    return jsonify({
+        "status": "success",
+        "avatar": account.avatar if account else None
+    })
+
+# ==========================================
+# 每日定时 T+1 重训任务 (使用 APScheduler)
+# ==========================================
+def daily_retrain_task():
+    """每天固定时间执行的自动重训任务"""
+    print(f"\n[Scheduler] === 开始执行每日定时 T+1 重训任务 ===")
+    from t_plus_1_scheduler import run_pipeline
+    import step3_recommend
+    import torch
+    import pandas as pd
+    import os
+
+    try:
+        # 1. 运行流水线 (跑 step1, step2, build_visual_graph)
+        result = run_pipeline()
+        if result.get('status') != 'success':
+            print(f"[Scheduler] 定时任务重训失败: {result.get('message')}")
+            return
+
+        # 2. 热更新内存数据 (核心：防止网页读到旧数据！)
+        print("[Scheduler] 正在将最新模型和关系加载到内存中...")
+        
+        # 重新加载模型向量
+        step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
+        # 重新加载关注字典
+        step3_recommend.follow_dict = step3_recommend.load_social_data()
+
+        # 重新加载用户信息字典
+        global user_info_map
+        users_csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.csv")
+        try:
+            df_users = pd.read_csv(users_csv_path, encoding='utf-8')
+        except UnicodeDecodeError:
+            df_users = pd.read_csv(users_csv_path, encoding='gbk')
+        
+        temp_dict = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
+        user_info_map = {int(k): str(v) for k, v in temp_dict.items()}
+
+        print(f"[Scheduler] === 每日定时 T+1 重训任务执行成功，内存已热更新！ ===")
+    except Exception as e:
+        print(f"[Scheduler] 定时任务执行发生异常: {e}")
+
+# 引入 BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+
 if __name__ == "__main__":
-    # host=127.0.0.1 表示只在本机访问；port=5000 是默认端口
+    # 配置并启动定时器
+    # 使用 BackgroundScheduler 不会阻塞主线程，Flask 可以照常运行
+    scheduler = BackgroundScheduler(timezone="Asia/Shanghai") # 强制指定中国时区
+    
+    # trigger="cron" 表示使用类似 Linux crontab 的定时方式
+    # 这里设置为每天凌晨 3点 00分 自动执行一次
+    scheduler.add_job(func=daily_retrain_task, trigger="cron", hour=3, minute=0)
+    
+    # 如果你想测试一下是否生效，可以先把上面那行注释掉，用下面这行每分钟执行一次看看效果：
+    # scheduler.add_job(func=daily_retrain_task, trigger="interval", minutes=1)
+    
+    # 启动调度器
+    # 注意：在 Flask debug=True 模式下，代码会被执行两次（Werkzeug的重启机制），
+    # 加上 os.environ.get('WERKZEUG_RUN_MAIN') == 'true' 可以防止定时器被启动两次。
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+        scheduler.start()
+        print("[System] ⏰ 后台定时重训系统已启动，每天凌晨 03:00 将自动执行。")
+
+    # 启动 Flask
     app.run(host="0.0.0.0", port=5001, debug=True)
