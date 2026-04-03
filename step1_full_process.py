@@ -42,8 +42,11 @@ x = torch.tensor(np.array([encode_user(row['info']) for _, row in df_users.iterr
 # 3. 边处理与指数时间衰减 (Exponential Decay)
 print(" 处理时间序列边...")
 df_edges = pd.read_csv('edges_time.csv')
-# 核心防弹补丁 2：清洗掉所有 uid <= 0 的幽灵边（比如 manager）
+# 获取有效的用户ID集合
+valid_uids = set(df_users['uid'].values)
+# 核心防弹补丁 2：清洗掉所有 uid <= 0 的幽灵边（比如 manager），以及不在 users.csv 中的节点
 df_edges = df_edges[(df_edges['source_id'] > 0) & (df_edges['target_id'] > 0)]
+df_edges = df_edges[df_edges['source_id'].isin(valid_uids) & df_edges['target_id'].isin(valid_uids)]
 # 严格按时间先后排序，确保因果性
 df_edges = df_edges.sort_values(by='timestamp').reset_index(drop=True)
 
