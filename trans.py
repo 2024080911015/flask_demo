@@ -3,6 +3,29 @@ import sqlite3
 import os
 from werkzeug.security import generate_password_hash
 
+def migrate_add_avatar():
+    """
+    迁移：为 accounts 表添加 avatar 字段（如果不存在）
+    """
+    db_path = os.path.join(os.path.dirname(__file__), 'campus_social.db')
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    try:
+        # 检查 avatar 字段是否已存在
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [col[1] for col in cursor.fetchall()]
+
+        if 'avatar' in columns:
+            print("✅ avatar 字段已存在，无需迁移")
+        else:
+            # 添加 avatar 字段
+            cursor.execute("ALTER TABLE accounts ADD COLUMN avatar VARCHAR(255)")
+            conn.commit()
+            print("✅ 成功添加 avatar 字段到 accounts 表")
+    finally:
+        conn.close()
+
 print("🚀 开始将 CSV 数据迁移到 SQLite 数据库...")
 
 # 1. 获取当前目录，并创建一个 SQLite 数据库文件
@@ -64,3 +87,9 @@ finally:
     conn.commit()
     conn.close()
     print(f"🎉 迁移完成！数据库文件已生成: {db_path}")
+
+# ==========================================
+# 执行 avatar 字段迁移
+# ==========================================
+print("\n检查并添加 avatar 字段...")
+migrate_add_avatar()

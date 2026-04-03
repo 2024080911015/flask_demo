@@ -14,7 +14,10 @@ const State = {
             document.getElementById('dashUsername').textContent = u.username;
             document.getElementById('dashUid').textContent = u.uid;
             document.getElementById('avatarInitial').textContent = u.username.charAt(0).toUpperCase();
-            
+
+            // 加载用户头像到侧边栏
+            this.loadAvatar(u.uid, 'avatarInitial');
+
             // 权限判断 (manager为管理员)
             this.isAdmin = (u.username === 'manager');
             if (this.isAdmin) {
@@ -25,6 +28,27 @@ const State = {
                 document.getElementById('adminPanel')?.classList.add('hidden');
             }
         }
+    },
+
+    // 加载头像到指定元素
+    async loadAvatar(uid, elementId, isBg = true) {
+        try {
+            const res = await fetch(`/api/user/avatar/${uid}`);
+            const data = await res.json();
+            const el = document.getElementById(elementId);
+            if (el) {
+                // 有头像则显示，没有则保持默认（首字母）
+                if (data.avatar) {
+                    if (isBg) {
+                        el.style.backgroundImage = `url(/static/avatars/${data.avatar}?uid=${uid})`;
+                        el.style.backgroundSize = 'cover';
+                        el.style.backgroundPosition = 'center';
+                        el.textContent = '';
+                    }
+                }
+                // 没有头像时不做任何处理，保持默认的样式和首字母
+            }
+        } catch (e) {}
     }
 };
 
@@ -282,6 +306,9 @@ async function searchUser(explicitId) {
         document.getElementById('displayUsername').innerText = isSelf ? State.user.username : `User`;
         document.getElementById('displayAvatarInitial').innerText = isSelf ? State.user.username.charAt(0).toUpperCase() : `U`;
 
+        // 加载用户头像
+        State.loadAvatar(explicitId, 'displayAvatarInitial');
+
         const ut = parseInfoTags(td.student_info, true);
         document.getElementById('displayUserInfo').innerHTML = ut.basic + ut.hobbies;
 
@@ -379,11 +406,12 @@ async function loadRelations() {
         fc.innerHTML = '';
         (foData.followers ||[]).forEach(item => {
             const t = parseInfoTags(item.info);
+            const avatarId = `follower-avatar-${item.id}`;
             // 核心修复：高度统一的横向条带 UI
             fc.innerHTML += `
             <div class="p-3 rounded-xl border border-stone-100 text-xs flex items-center justify-between hover:bg-stone-50 transition bg-white mb-2">
                 <div class="flex items-center gap-3 cursor-pointer hover:opacity-70 transition w-full" onclick="openUserModal(${item.id})">
-                    <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center font-bold text-blue-600 shrink-0 border border-blue-100">${(item.username || 'U').charAt(0).toUpperCase()}</div>
+                    <div id="${avatarId}" class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center font-bold text-blue-600 shrink-0 border border-blue-100">${(item.username || 'U').charAt(0).toUpperCase()}</div>
                     <div>
                         <div class="font-bold text-stone-800 text-sm mb-0.5">${item.username || 'User'} <span class="font-mono text-stone-400 text-[10px] ml-1">#${item.id}</span></div>
                         <div class="flex flex-wrap gap-1">${t.basic}</div>
@@ -393,6 +421,9 @@ async function loadRelations() {
                     ${getFollowButtonHTML(item.id)}
                 </div>
             </div>`;
+
+            // 加载头像
+            State.loadAvatar(item.id, avatarId);
         });
 
         document.getElementById('countFollowing').innerText = fData.count || 0;
@@ -425,11 +456,12 @@ function renderAccordionGroup(groupId, groupName, friends, canManage) {
     
     friends.forEach(f => {
         const t = parseInfoTags(f.info);
+        const avatarId = `friend-avatar-${f.id}`;
         // 【核心修复】：展示 Username，点击触发 openUserModal
         html += `
         <div class="p-3 rounded-lg border border-transparent hover:bg-stone-50 text-xs flex items-center justify-between transition">
             <div class="flex items-center gap-3 cursor-pointer hover:opacity-70 transition w-full" onclick="openUserModal(${f.id})">
-                <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 shrink-0 text-sm border border-amber-200">${(f.username || 'U').charAt(0).toUpperCase()}</div>
+                <div id="${avatarId}" class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 shrink-0 text-sm border border-amber-200">${(f.username || 'U').charAt(0).toUpperCase()}</div>
                 <div>
                     <div class="font-bold text-stone-800 text-sm mb-0.5">${f.username || 'User'} <span class="font-mono text-stone-400 text-[10px] ml-1">#${f.id}</span></div>
                     <div class="flex flex-wrap gap-1">${t.basic}</div>
@@ -437,6 +469,9 @@ function renderAccordionGroup(groupId, groupName, friends, canManage) {
             </div>
             <div class="shrink-0 ml-4">${getFollowButtonHTML(f.id)}</div>
         </div>`;
+
+        // 加载头像
+        State.loadAvatar(f.id, avatarId);
     });
     html += `</div></details>`;
     return html;
@@ -600,26 +635,35 @@ async function loadProfile() {
         document.getElementById('prof-username').value = State.user.username;
         document.getElementById('profileAvatar').innerText = State.user.username.charAt(0).toUpperCase();
         document.getElementById('prof-display-name').innerText = State.user.username;
-        
+
+        // 加载头像
+        if (data.avatar) {
+            const avatarEl = document.getElementById('profileAvatar');
+            avatarEl.style.backgroundImage = `url(/static/avatars/${data.avatar})`;
+            avatarEl.style.backgroundSize = 'cover';
+            avatarEl.style.backgroundPosition = 'center';
+            avatarEl.innerText = '';
+        }
+
         const infoMap = {};
         (data.student_info || "").split(',').forEach(p => {
             const[k, v] = p.split(':');
             if(k && v) infoMap[k] = v;
         });
-        
+
         document.getElementById('prof-gender').value = infoMap['性别'] || '男';
-        
+
         // 动态生成年级和专业选项
         document.getElementById('prof-grade').innerHTML = OPT_GRADES.map(g => `<option value="${g}" ${infoMap['年级']===g?'selected':''}>${g}</option>`).join('');
         document.getElementById('prof-major').innerHTML = OPT_MAJORS.map(m => `<option value="${m}" ${infoMap['专业']===m?'selected':''}>${m}</option>`).join('');
-        
+
         // 动态渲染爱好和标签的点击按钮
         const myHobbies = (infoMap['爱好'] || "").split(' ');
         const myTags = (infoMap['标签'] || "").split(' ');
-        
+
         renderProfileOptions('prof-hobbies-container', OPT_HOBBIES, 'prof_hobbies', true, myHobbies);
         renderProfileOptions('prof-tags-container', OPT_TAGS, 'prof_tags', true, myTags);
-        
+
     } catch(e) {}
 }
 
@@ -628,14 +672,14 @@ window.saveProfile = async function() {
     const gender = document.getElementById('prof-gender').value;
     const grade = document.getElementById('prof-grade').value;
     const major = document.getElementById('prof-major').value;
-    
+
     const hobbiesNodes = document.querySelectorAll('input[name="prof_hobbies"]:checked');
     const tagsNodes = document.querySelectorAll('input[name="prof_tags"]:checked');
     const hobbies = Array.from(hobbiesNodes).map(n => n.value).join(' ') || "无";
     const tags = Array.from(tagsNodes).map(n => n.value).join(' ') || "无标签";
-    
+
     const info = `性别:${gender},年级:${grade},专业:${major},爱好:${hobbies},标签:${tags}`;
-    
+
     try {
         const res = await fetch('/api/user/update', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -651,6 +695,57 @@ window.saveProfile = async function() {
             document.getElementById('prof-display-name').innerText = username;
         }
     } catch(e) { alert('保存失败'); }
+}
+
+// 上传头像函数
+window.uploadAvatar = async function() {
+    const fileInput = document.getElementById('avatarInput');
+    const file = fileInput.files[0];
+
+    if (!file) return;
+
+    // 验证文件类型
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        alert('不支持的文件格式，仅支持: png, jpg, jpeg, gif, webp');
+        return;
+    }
+
+    // 验证文件大小 (5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+        alert('文件过大，最大支持 5MB');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+        const response = await fetch('/api/user/upload_avatar', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            alert('✅ ' + data.message);
+            // 刷新头像显示
+            const avatarEl = document.getElementById('profileAvatar');
+            avatarEl.style.backgroundImage = `url(/static/avatars/${data.avatar}?uid=${State.user.uid}&t=${Date.now()})`;
+            avatarEl.style.backgroundSize = 'cover';
+            avatarEl.style.backgroundPosition = 'center';
+            avatarEl.innerText = '';
+
+            // 刷新侧边栏头像
+            State.loadAvatar(State.user.uid, 'avatarInitial');
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        alert('上传失败: ' + error.message);
+    }
 }
 
 
@@ -700,11 +795,12 @@ window.searchOtherUser = async function(explicitQuery = null) {
         grid.innerHTML = '';
         results.forEach(item => {
             const t = parseInfoTags(item.info);
+            const avatarId = `search-avatar-${item.id}`;
             grid.innerHTML += `
             <div class="p-5 rounded-2xl border border-stone-100 hover:border-amber-300 hover:bg-amber-50/40 transition group flex flex-col justify-between h-full bg-white shadow-sm cursor-pointer transform hover:-translate-y-1" onclick="openUserModal(${item.id})">
                 <div>
                     <div class="flex items-center gap-4 mb-4">
-                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center font-bold text-blue-600 text-xl shadow-inner border border-white shrink-0">
+                        <div id="${avatarId}" class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center font-bold text-blue-600 text-xl shadow-inner border border-white shrink-0">
                             ${(item.username||'U').charAt(0).toUpperCase()}
                         </div>
                         <div class="flex-1 min-w-0">
@@ -716,6 +812,9 @@ window.searchOtherUser = async function(explicitQuery = null) {
                     <div class="flex flex-wrap gap-1 mt-2">${t.hobbies}</div>
                 </div>
             </div>`;
+
+            // 加载头像
+            State.loadAvatar(item.id, avatarId);
         });
         
     } catch(err) {
@@ -896,7 +995,10 @@ window.openUserModal = async function(explicitId) {
         
         document.getElementById('modalUsername').innerText = uData.username || 'User';
         document.getElementById('modalAvatar').innerText = (uData.username || 'U').charAt(0).toUpperCase();
-        
+
+        // 加载头像到用户模态框
+        State.loadAvatar(uData.student_id || sid, 'modalAvatar');
+
         const t = parseInfoTags(uData.student_info);
         // 分离注入蓝色基础标签和黄色专属标签
         document.getElementById('modalBasicInfo').innerHTML = t.basic;
