@@ -3,6 +3,7 @@ import os
 import torch
 import torch.nn.functional as F
 import pandas as pd
+import requests as http_requests  # 用于代理转发 OpenClaw AI Agent 请求
 import step3_recommend
 from step3_recommend import COMMUNITY_RULES
 from flask_sqlalchemy import SQLAlchemy
@@ -49,6 +50,16 @@ class FriendMapping(db.Model):
     uid = db.Column(db.Integer, nullable=False, index=True) # 归属人
     target_uid = db.Column(db.Integer, nullable=False)      # 被分组的好友ID
     group_id = db.Column(db.Integer, nullable=False)        # 所属分组ID
+# =====================================================
+
+# ================= 新增：聊天历史模型 =================
+class ChatHistory(db.Model):
+    __tablename__ = 'chat_history'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    uid = db.Column(db.Integer, nullable=False, index=True) # 用户ID
+    role = db.Column(db.String(20), nullable=False)         # 'user' 或 'assistant'
+    content = db.Column(db.Text, nullable=False)             # 对话内容
+    created_at = db.Column(db.DateTime, nullable=False)      # 创建时间
 # =====================================================
 
 # 初始化数据库表
@@ -466,6 +477,129 @@ def api_login():
 def api_logout():
     session.clear()
     return jsonify({"status": "success", "message": "已退出登录"}), 200
+
+# ==========================================
+#  OpenClaw AI 社交顾问中转路由
+#  - 安全沙盒：前端不直接访问 OpenClaw，Token 仅存于后端
+#  - 千人千面：动态注入用户画像构建 System Prompt
+#  - OpenClaw 对外暴露 OpenAI 兼容的 /v1/chat/completions 接口
+# ==========================================
+OPENCLAW_API_URL = os.environ.get("OPENCLAW_API_URL", "http://127.0.0.1:18789/v1/chat/completions")
+OPENCLAW_API_KEY = os.environ.get("OPENCLAW_API_KEY", "flask-social-2026")
+
+@app.route('/api/agent/chat', methods=['POST'])
+def openclaw_chat():
+    """代理转发用户消息到 OpenClaw AI Agent，并注入个性化社交画像上下文"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+
+    uid = session['uid']
+    user_msg = request.json.get("message", "").strip()
+    history = request.json.get("history", [])
+    if not user_msg and not history:
+        return jsonify({"status": "error", "message": "消息不能为空"}), 400
+
+    # 1. 提取该用户的画像上下文 (实现千人千面)
+    user_info = user_info_map.get(uid, "未知")
+    following_list = follow_dict.get(uid, [])
+    following_count = len(following_list)
+    followers_list = [u for u, fl in follow_dict.items() if uid in fl]
+    followers_count = len(followers_list)
+
+    # 给 Agent 设定人格并注入上下文 (Dynamic Prompting)
+    system_prompt = f"""你现在的身份是这个校园社交平台的 AI 专属红娘与交友顾问 'Claw'。
+当前与你对话的同学 ID 是 {uid}，用户名是 {user_name_map.get(uid, '未知')}。
+Ta 的个人资料和标签是：{user_info}。
+Ta 目前在平台关注了 {following_count} 个人，有 {followers_count} 个粉丝。
+请根据 Ta 的标签（例如是社恐、还是社牛、专业及爱好），用幽默热情的语气回答社交困惑、或者给出破冰建议。
+如果用户问到推荐交友相关的问题，请引导他们使用平台的 AI 智能推荐和关系管理功能。
+回答请简洁有趣，每次回复控制在 200 字以内。"""
+
+    # 组装聊天历史
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    if history:
+        # 取最近20条历史记录防止超长
+        recent_history = history[-20:] if len(history) > 20 else history
+        for h in recent_history:
+            if h.get("role") in ["user", "assistant"] and h.get("content"):
+                messages.append({"role": h.get("role"), "content": h.get("content")})
+    else:
+        # 兼容旧版本，如果没有history则直接塞入user_msg
+        messages.append({"role": "user", "content": user_msg})
+
+    # 2. 组装 OpenAI 兼容格式的请求 (OpenClaw /v1/chat/completions)
+    payload = {
+        "model": "",  # OpenClaw 会使用 gateway 配置的默认 agent model
+        "messages": messages,
+        "stream": False
+    }
+    headers = {
+        "Authorization": f"Bearer {OPENCLAW_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        # 3. 向 OpenClaw 网关发请求 (Agent 思考可能较慢，给 60s)
+        resp = http_requests.post(OPENCLAW_API_URL, json=payload, headers=headers, timeout=60)
+        resp_data = resp.json()
+
+        # OpenClaw 返回 OpenAI 兼容格式: { "choices": [{ "message": { "content": "..." } }] }
+        if "choices" in resp_data and len(resp_data["choices"]) > 0:
+            reply = resp_data["choices"][0]["message"]["content"]
+
+            # 保存用户消息和AI回复到数据库
+            from datetime import datetime
+            now = datetime.now()
+            user_msg_entry = ChatHistory(uid=uid, role='user', content=user_msg, created_at=now)
+            assistant_msg_entry = ChatHistory(uid=uid, role='assistant', content=reply, created_at=now)
+            db.session.add(user_msg_entry)
+            db.session.add(assistant_msg_entry)
+            db.session.commit()
+
+            return jsonify({"status": "success", "reply": reply})
+        elif "error" in resp_data:
+            err_msg = resp_data["error"].get("message", "未知错误")
+            return jsonify({"status": "error", "message": f"OpenClaw 返回错误: {err_msg}"}), 502
+        else:
+            return jsonify({"status": "success", "reply": "Agent 正在思考..."})
+    except http_requests.exceptions.ConnectionError:
+        return jsonify({"status": "error", "message": "OpenClaw 服务未连通，请确认 WSL 中 gateway 已启动，并已启用 HTTP API"}), 503
+    except http_requests.exceptions.Timeout:
+        return jsonify({"status": "error", "message": "OpenClaw Agent 响应超时（60s），请稍后再试"}), 504
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"连接 OpenClaw 失败: {str(e)}"}), 500
+
+@app.route('/api/agent/history', methods=['GET'])
+def get_chat_history():
+    """获取用户的聊天历史"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+
+    uid = session['uid']
+    try:
+        # 按时间正序获取，最多50条
+        history = ChatHistory.query.filter_by(uid=uid).order_by(ChatHistory.created_at.asc()).limit(50).all()
+        history_list = [{"role": h.role, "content": h.content} for h in history]
+        return jsonify({"status": "success", "history": history_list})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/agent/history', methods=['DELETE'])
+def clear_chat_history():
+    """清空用户的聊天历史"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+
+    uid = session['uid']
+    try:
+        ChatHistory.query.filter_by(uid=uid).delete()
+        db.session.commit()
+        return jsonify({"status": "success", "message": "聊天历史已清空"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/api/auth/me', methods=['GET'])
 def api_current_user():

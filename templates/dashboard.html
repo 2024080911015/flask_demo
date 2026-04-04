@@ -66,6 +66,53 @@
             {% include "panels/search.html" %}
             {% include "panels/stats.html" %}
 
+            <!-- ================= OpenClaw AI 社交助手浮窗 ================= -->
+            <!-- 聊天窗口 -->
+            <div id="ai-agent-widget" class="fixed bottom-24 right-6 w-96 bg-white rounded-2xl shadow-2xl border border-amber-200/60 hidden flex-col z-50 overflow-hidden transition-all duration-300" style="max-height: 520px;">
+                <!-- 标题栏 -->
+                <div class="bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500 p-4 flex justify-between items-center text-white cursor-pointer select-none" onclick="toggleAgent()">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🤖</span>
+                        <div>
+                            <span class="font-bold text-sm tracking-wide">社交助手 OpenClaw</span>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse"></span>
+                                <span class="text-[10px] text-white/80 font-medium">AI Agent 在线</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="event.stopPropagation(); clearChatHistory()" class="text-xs hover:bg-white/20 px-2.5 py-1 rounded-lg transition font-medium">清空</button>
+                        <span class="text-xs hover:bg-white/20 px-2.5 py-1 rounded-lg transition font-medium">收起 ▾</span>
+                    </div>
+                </div>
+
+                <!-- 聊天消息区 -->
+                <div id="ai-chat-box" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-stone-50 to-white text-sm flex flex-col custom-scroll" style="min-height: 280px; max-height: 340px;">
+                    <!-- 系统欢迎消息 -->
+                    <div class="text-left">
+                        <div class="bg-white p-3 rounded-2xl rounded-tl-md inline-block border border-stone-200/80 text-stone-600 shadow-sm max-w-[88%] leading-relaxed">
+                            <span class="text-amber-500 font-bold">嗨！</span> 我是接入 <span class="font-bold text-orange-500">OpenClaw</span> 引擎的社交专属顾问 🎯<br>
+                            <span class="text-stone-400 text-xs mt-2 block">试试问我："怎么和二次元圈的同学搭讪？" 或 "分析一下我的交友圈子"</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输入区 -->
+                <div class="p-3 bg-white border-t border-stone-100 flex gap-2 items-center">
+                    <input type="text" id="ai-input" class="flex-1 px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition placeholder:text-stone-400" placeholder="问问 AI 顾问...">
+                    <button onclick="sendToAgent()" id="ai-send-btn" class="bg-gradient-to-r from-amber-500 to-orange-400 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-amber-200/50 transition-all active:scale-95 shrink-0">
+                        发送
+                    </button>
+                </div>
+            </div>
+
+            <!-- 浮动触发按钮 -->
+            <button onclick="toggleAgent()" id="ai-fab-btn" class="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-tr from-amber-500 to-orange-400 rounded-full shadow-lg shadow-amber-300/40 text-white text-2xl flex items-center justify-center hover:scale-110 hover:shadow-xl hover:shadow-amber-300/60 transition-all duration-300 z-40 active:scale-95">
+                ✨
+            </button>
+            <!-- ===== OpenClaw 浮窗结束 ===== -->
+
         </main>
     </div>
 </div>
