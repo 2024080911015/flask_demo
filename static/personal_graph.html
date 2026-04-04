@@ -2,33 +2,69 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>个人社交星图</title>
+  <title>个人社交专属星图</title>
   <style>
-    body { margin: 0; background-color: #050510; font-family: sans-serif; overflow: hidden;}
+    body { margin: 0; background-color: #02020a; font-family: sans-serif; overflow: hidden;}
     .node-tooltip { background: rgba(15,23,42,0.9); border: 1px solid #334155; border-radius: 6px; padding: 12px; color: white;}
     .node-tooltip .name { font-weight: bold; border-bottom: 1px solid #334155; padding-bottom: 5px; margin-bottom: 5px;}
     .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; vertical-align: middle; }
     #legend {
-      position: absolute; bottom: 30px; left: 30px; background: rgba(30,41,59,0.85); backdrop-filter: blur(10px);
+      position: absolute; bottom: 30px; right: 30px; background: rgba(30,41,59,0.85); backdrop-filter: blur(10px);
       border-radius: 10px; padding: 15px; color: white; border: 1px solid #475569; font-size: 14px; z-index: 10;
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); line-height: 1.8;
     }
-    #loading {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      color: #00ffcc; font-size: 20px; font-weight: bold; z-index: 20;
+    /* 🚀 适当加宽控制台，容纳更多选项 */
+    #control-panel {
+      position: absolute; top: 20px; left: 20px; background: rgba(30,41,59,0.85); backdrop-filter: blur(10px);
+      border-radius: 12px; padding: 15px; color: white; border: 1px solid #475569; font-size: 13px; z-index: 10; width: 240px;
     }
+    .switch-container { display: flex; align-items: center; justify-content: space-between; margin-top: 10px;}
+    .toggle-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #00ffcc;}
+    #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ffcc; font-size: 20px; font-weight: bold; z-index: 20; }
   </style>
   <script src="https://unpkg.com/3d-force-graph"></script>
 </head>
 <body>
-  <div id="loading">🚀 正在呼叫 GNN 算法计算推荐...</div>
-  <div id="legend">
-    <div style="font-weight: bold; color: #38bdf8; margin-bottom: 8px; border-bottom: 1px solid #475569; padding-bottom: 5px;">图谱说明</div>
-    <div>🟡 <span style="color:#fbbf24; font-weight:bold;">中心节点 (当前用户)</span></div>
-    <div>🔵 <span style="color:#3b82f6;">真实连边 (现有好友)</span></div>
-    <div>✨ <span style="color:#00ffcc; font-weight:bold;">预测连边 (算法推荐好友)</span></div>
-    <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">* 悬停可查看是关注还是粉丝</div>
+  <div id="loading">🚀 正在呼叫 GNN 算法构建专属星域...</div>
+  
+  <div id="control-panel">
+    <h3 style="margin:0 0 10px 0; color:#38bdf8; font-size: 15px; border-bottom: 1px solid #475569; padding-bottom: 5px;">👀 图谱视图控制</h3>
+    <!-- 边过滤 -->
+    <div class="switch-container">
+      <label for="toggle2ndDegree" class="cursor-pointer font-bold text-stone-200">🕸️ 显示好友间连线</label>
+      <input type="checkbox" id="toggle2ndDegree" onchange="updateView()" class="toggle-checkbox" checked>
+    </div>
+    <div class="switch-container">
+      <label for="toggleAI" class="cursor-pointer font-bold text-stone-200">✨ 显示 AI 推荐</label>
+      <input type="checkbox" id="toggleAI" onchange="updateView()" class="toggle-checkbox" checked>
+    </div>
+    
+    <!-- 🚀 节点过滤：高级下钻选项 -->
+    <div style="border-top: 1px solid #475569; margin-top: 12px; padding-top: 5px;">
+        <div class="switch-container">
+          <label for="toggleFollowing" class="cursor-pointer font-bold text-blue-400">👀 显示你的关注 (单向)</label>
+          <input type="checkbox" id="toggleFollowing" onchange="updateView()" class="toggle-checkbox" checked>
+        </div>
+        <div class="switch-container">
+          <label for="toggleFollowers" class="cursor-pointer font-bold text-gray-400">🌟 显示你的粉丝 (单向)</label>
+          <input type="checkbox" id="toggleFollowers" onchange="updateView()" class="toggle-checkbox" checked>
+        </div>
+        <div class="switch-container">
+          <label for="toggleMutual" class="cursor-pointer font-bold text-yellow-500">🤝 显示互相关注</label>
+          <input type="checkbox" id="toggleMutual" onchange="updateView()" class="toggle-checkbox" checked>
+        </div>
+    </div>
   </div>
+
+  <div id="legend">
+    <div style="font-weight: bold; color: #38bdf8; margin-bottom: 8px; border-bottom: 1px solid #475569; padding-bottom: 5px;">星环关系说明</div>
+    <div>🟡 <span style="color:#fbbf24; font-weight:bold;">金色光环 (你自己)</span></div>
+    <div>🟠 <span style="color:#f59e0b;">黄色光环 (互相关注)</span></div>
+    <div>🔵 <span style="color:#3b82f6;">蓝色光环 (你的关注)</span></div>
+    <div>⚪ <span style="color:#9ca3af;">灰色光环 (你的粉丝)</span></div>
+    <div>✨ <span style="color:#00ffcc; font-weight:bold;">青色流光 (AI预测好友)</span></div>
+  </div>
+  
   <div id="3d-graph"></div>
 
   <script type="module">
@@ -39,145 +75,242 @@
     const centerUid = String(urlParams.get('uid'));
     const recIdsStr = urlParams.get('recs') ? urlParams.get('recs').split(',').map(String) :[];
 
+    window.Graph = null;
+
     if (!centerUid || centerUid === 'null') {
       document.getElementById('loading').innerText = "❌ 缺少 uid 参数！";
     } else {
-      document.getElementById('loading').innerText = "🌌 正在渲染专属星空...";
-      fetch('/static/graph.json?t=' + Math.random())
-        .then(res => res.json())
-        .then(graphData => {
+      Promise.all([
+        fetch('/static/graph.json?t=' + Math.random()).then(res => res.json()),
+        fetch(`/api/user/avatar/${centerUid}`).then(res => res.json()).catch(() => ({}))
+      ]).then(([graphData, avatarData]) => {
           document.getElementById('loading').style.display = 'none';
 
           let adjacencyList = {};
-          const followingSet = new Set(); // 我关注了谁
-          const followerSet = new Set();  // 谁关注了我
+          const followingSet = new Set(); 
+          const followerSet = new Set();  
 
-          graphData.nodes.forEach(n => adjacencyList[String(n.id)] = new Set());
+          graphData.nodes.forEach(n => {
+              adjacencyList[String(n.id)] = new Set();
+              if (String(n.id) === centerUid && avatarData.avatar) n.avatar = avatarData.avatar;
+          });
           
           graphData.links.forEach(l => {
             const s = String(l.source.id || l.source);
             const t = String(l.target.id || l.target);
-            
-            // 构建无向邻接表（用于筛出1度好友）
             if (adjacencyList[s] && adjacencyList[t]) {
               adjacencyList[s].add(t); adjacencyList[t].add(s);
             }
-            // 构建有向关系（用于判断关注/粉丝）
             if (s === centerUid) followingSet.add(t);
             if (t === centerUid) followerSet.add(s);
           });
+
+          // 暴露给全局，供过滤函数使用
+          window.centerUid = centerUid;
+          window.recIdsStr = recIdsStr;
+          window.followingSet = followingSet;
+          window.followerSet = followerSet;
 
           const existingFriends = Array.from(adjacencyList[centerUid] || []);
           const keepIds = new Set([centerUid, ...existingFriends, ...recIdsStr]);
           
           const filteredNodes = graphData.nodes.filter(n => keepIds.has(String(n.id)));
-          const filteredLinks = graphData.links.filter(l => keepIds.has(String(l.source)) && keepIds.has(String(l.target)));
-
-          recIdsStr.forEach(rid => {
-            filteredLinks.push({ source: centerUid, target: rid, isVirtual: true });
+          
+          const filteredLinks = graphData.links.filter(l => {
+              const s = String(l.source.id || l.source);
+              const t = String(l.target.id || l.target);
+              if (keepIds.has(s) && keepIds.has(t)) {
+                  l.isDirect = (s === centerUid || t === centerUid);
+                  return true;
+              }
+              return false;
           });
 
-          const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
+          recIdsStr.forEach(rid => { filteredLinks.push({ source: centerUid, target: rid, isVirtual: true, isDirect: false }); });
+
+          window.Graph = ForceGraph3D()(document.getElementById('3d-graph'))
             .backgroundColor('#02020a')
-            .nodeRelSize(4)
-            .nodeOpacity(0.9)
-            .nodeResolution(8)
-            .nodeColor(node => {
-              const nid = String(node.id);
-              if (nid === centerUid) return '#fbbf24'; // 你自己
-              if (recIdsStr.includes(nid)) return '#00ffcc'; // AI推荐
-              const isFollowing = followingSet.has(nid);
-              const isFollower = followerSet.has(nid);
-              if (isFollowing && isFollower) return '#ec4899'; // 互相关注
-              if (isFollowing) return '#3b82f6'; // 你的关注
-              if (isFollower) return '#10b981'; // 你的粉丝
-              return '#4488dd'; // 其他
+            .nodeOpacity(1.0)
+            .nodeThreeObject(node => {
+                const nid = String(node.id);
+                const isFollowing = followingSet.has(nid);
+                const isFollower = followerSet.has(nid);
+
+                let glowColor = '#9ca3af'; // 粉丝：灰色
+                let size = 18; 
+                
+                if (nid === centerUid) { 
+                    glowColor = '#fbbf24'; size = 28; // 中心节点：大金球
+                } else if (recIdsStr.includes(nid)) { 
+                    glowColor = '#00ffcc'; size = 22; // AI推荐：青色
+                } else if (isFollowing && isFollower) {
+                    glowColor = '#f59e0b'; size = 18; // 互关：暖黄
+                } else if (isFollowing) {
+                    glowColor = '#3b82f6'; size = 18; // 你的关注：冷蓝
+                } else if (isFollower) {
+                    glowColor = '#9ca3af'; size = 18; // 你的粉丝：灰色
+                }
+
+                const canvasSize = 256;
+                const canvas = document.createElement('canvas');
+                canvas.width = canvasSize; canvas.height = canvasSize;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+                const center = canvasSize / 2;
+                const lineWidth = 10;
+                const radius = center - lineWidth - 25; 
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.colorSpace = THREE.SRGBColorSpace;
+                const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+                const sprite = new THREE.Sprite(material);
+                sprite.scale.set(size, size, 1);
+
+                const drawNeonRing = () => {
+                    ctx.beginPath();
+                    ctx.arc(center, center, radius, 0, 2 * Math.PI);
+                    ctx.lineWidth = lineWidth;
+                    ctx.strokeStyle = glowColor;
+                    ctx.shadowColor = glowColor;
+                    ctx.shadowBlur = 25; 
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.arc(center, center, radius, 0, 2 * Math.PI);
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.shadowBlur = 0;
+                    ctx.stroke();
+
+                    texture.needsUpdate = true;
+                };
+
+                if (node.avatar) {
+                    const img = new Image();
+                    img.crossOrigin = "Anonymous";
+                    img.src = `/static/avatars/${node.avatar}?t=${Date.now()}`;
+                    img.onload = () => {
+                        ctx.clearRect(0, 0, canvasSize, canvasSize);
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
+                        ctx.clip(); 
+                        ctx.filter = 'brightness(80%) contrast(110%)'; 
+                        ctx.drawImage(img, center - radius, center - radius, radius*2, radius*2);
+                        ctx.restore(); 
+                        drawNeonRing();
+                    };
+                } else {
+                    ctx.clearRect(0, 0, canvasSize, canvasSize);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
+                    ctx.clip();
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fill();
+                    ctx.font = 'bold 90px sans-serif';
+                    ctx.fillStyle = '#cbd5e1'; 
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText((node.username || 'U').charAt(0).toUpperCase(), center, center + 8);
+                    ctx.restore();
+                    drawNeonRing();
+                }
+                return sprite;
             })
-            .nodeVal(node => {
-              const nid = String(node.id);
-              if (nid === centerUid) return 12; // 缩小中心节点
-              if (recIdsStr.includes(nid)) return 8; // 缩小推荐节点
-              return 4; // 缩小其他默认节点
+            // 🚀 核心修复：提升好友间连线（2度连线）的可见度和亮度！
+            .linkColor(link => {
+                if (link.isVirtual) return 'rgba(0, 255, 204, 0.8)'; // AI推荐
+                if (link.isDirect) return 'rgba(100, 160, 255, 0.8)'; // 你和好友(1度): 更明亮的蓝白线
+                return 'rgba(200, 220, 255, 0.35)'; // 好友间(2度): 亮度提高，不再是暗淡透明线
+            }) 
+            .linkWidth(link => {
+                if (link.isVirtual) return 2.0; 
+                if (link.isDirect) return 1.2; // 1度连线稍微加粗
+                return 0.4; // 2度连线加粗一倍，一眼就能看清蛛网结构
             })
-            .linkColor(link => link.isVirtual ? 'rgba(0, 255, 204, 0.5)' : 'rgba(68, 136, 221, 0.15)') // 调整颜色对比，保留推荐边绿色特征
-            .linkWidth(link => link.isVirtual ? 1.5 : 0.2)
-            .linkDirectionalParticles(link => link.isVirtual ? 4 : 0) // 仅保留关键路径的粒子，减少画面混乱
+            .linkDirectionalParticles(link => link.isVirtual ? 4 : 0) 
             .linkDirectionalParticleSpeed(0.008)
-            .linkDirectionalParticleWidth(1.2)
-            .linkDirectionalParticleColor(link => link.isVirtual ? '#00ffcc' : '#ffffff') // 让推荐边粒子也呈现专属发光绿
+            .linkDirectionalParticleWidth(1.5)
+            .linkDirectionalParticleColor(() => '#00ffcc') 
+            
             .nodeLabel(node => {
               const nid = String(node.id);
               let relationTag = "";
-              
-              // 核心修改：精细化标签判断
-              if (nid === centerUid) {
-                  relationTag = "<span class='badge' style='color:#fbbf24; border:1px solid #fbbf24;'>👉 你自己</span>";
-              } else if (recIdsStr.includes(nid)) {
-                  relationTag = "<span class='badge' style='color:#00ffcc; border:1px solid #00ffcc;'>✨ AI推荐</span>";
-              } else {
-                  const isFollowing = followingSet.has(nid);
-                  const isFollower = followerSet.has(nid);
-                  if (isFollowing && isFollower) {
-                      relationTag = "<span class='badge' style='color:#ec4899; border:1px solid #ec4899;'>🤝 互相关注</span>";
-                  } else if (isFollowing) {
-                      relationTag = "<span class='badge' style='color:#3b82f6; border:1px solid #3b82f6;'>👀 你的关注</span>";
-                  } else if (isFollower) {
-                      relationTag = "<span class='badge' style='color:#10b981; border:1px solid #10b981;'>🌟 你的粉丝</span>";
-                  }
+              if (nid === centerUid) relationTag = "<span class='badge' style='color:#fbbf24; border:1px solid #fbbf24;'>👉 你自己</span>";
+              else if (recIdsStr.includes(nid)) relationTag = "<span class='badge' style='color:#00ffcc; border:1px solid #00ffcc;'>✨ AI推荐</span>";
+              else {
+                  const isFollowing = followingSet.has(nid), isFollower = followerSet.has(nid);
+                  if (isFollowing && isFollower) relationTag = "<span class='badge' style='color:#f59e0b; border:1px solid #f59e0b;'>🤝 互相关注</span>";
+                  else if (isFollowing) relationTag = "<span class='badge' style='color:#3b82f6; border:1px solid #3b82f6;'>👀 你的关注</span>";
+                  else if (isFollower) relationTag = "<span class='badge' style='color:#9ca3af; border:1px solid #9ca3af;'>🌟 你的粉丝</span>";
               }
-
-              return `
-              <div class="node-tooltip">
-                <div class="name">👤 ${node.name} 【${node.community||'未知'}】 ${relationTag}</div>
-                <div class="info">${(node.info||'').replace(/,/g, '<br/>')}</div>
-              </div>`;
+              return `<div class="node-tooltip"><div class="name">👤 ${node.username||'User'} 【${node.community||'未知'}】 ${relationTag}</div><div class="info">${(node.info||'').replace(/,/g, '<br/>')}</div></div>`;
             })
             .graphData({ nodes: filteredNodes, links: filteredLinks });
 
-          // 核心效果1：Bloom 发光效果（动态平衡亮度与层次）
           const bloomPass = new UnrealBloomPass();
-          bloomPass.threshold = 0.3;  // 提高阈值：避免过亮导致颜色泛白不分
-          bloomPass.strength = 1.0;   // 调弱光晕强度：保留颜色本貌，区分蓝绿
-          bloomPass.radius = 0.2;     // 缩小发散半径：防止颜色串光
-          Graph.postProcessingComposer().addPass(bloomPass);
+          bloomPass.threshold = 0.65;  
+          bloomPass.strength = 1.0;   
+          bloomPass.radius = 0.15;     
+          window.Graph.postProcessingComposer().addPass(bloomPass);
 
-          // 核心效果2：静态背景星空（大量离散小粒子作为背景）
           const starGeometry = new THREE.BufferGeometry();
-          const starCount = 3000;
-          const starPositions = new Float32Array(starCount * 3);
-          for (let i = 0; i < starCount * 3; i++) {
-            starPositions[i] = (Math.random() - 0.5) * 1000;
-          }
+          const starPositions = new Float32Array(3000 * 3);
+          for (let i = 0; i < 9000; i++) starPositions[i] = (Math.random() - 0.5) * 1000;
           starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-          const starMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.8,
-            transparent: true,
-            opacity: 0.8
-          });
-          const stars = new THREE.Points(starGeometry, starMaterial);
-          Graph.scene().add(stars);
+          const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0.6 });
+          window.Graph.scene().add(new THREE.Points(starGeometry, starMaterial));
 
-          // 核心效果3：缓慢自动旋转效果，仿佛星空流转
-          let angle = 0;
-          function autoRotate() {
-            angle += 0.001;
-            Graph.cameraPosition({
-              x: Math.sin(angle) * 180,
-              z: Math.cos(angle) * 180,
-              y: 20
-            }, { x: 0, y: 0, z: 0 }); // 去掉 100ms 过渡时间，因为每帧都在更新，过渡会导致画面振动抖动
-            requestAnimationFrame(autoRotate);
-          }
-          autoRotate();
+          setTimeout(() => window.Graph.cameraPosition({ z: 180 }, null, 1500), 500);
+          window.addEventListener('resize', () => { window.Graph.width(window.innerWidth); window.Graph.height(window.innerHeight); });
 
-          setTimeout(() => Graph.cameraPosition({ z: 200 }, null, 1500), 500);
-          window.addEventListener('resize', () => {
-            Graph.width(window.innerWidth);
-            Graph.height(window.innerHeight);
-          });
+          updateView();
         });
     }
+
+    // ==========================================
+    // 💡 全局控制函数：通过精准的层级逻辑过滤节点与连线
+    // ==========================================
+    window.updateView = function() {
+        if (!window.Graph) return;
+        const show2nd = document.getElementById('toggle2ndDegree').checked;
+        const showAI = document.getElementById('toggleAI').checked;
+        const showFollowing = document.getElementById('toggleFollowing').checked;
+        const showFollowers = document.getElementById('toggleFollowers').checked;
+        const showMutual = document.getElementById('toggleMutual').checked;
+
+        // 核心逻辑 1：计算某个节点是否应该被显示
+        const checkNodeVisible = (nid) => {
+            if (nid === window.centerUid) return true; // 中心节点永远显示
+            if (window.recIdsStr.includes(nid)) return showAI; // AI推荐节点跟随AI开关
+            
+            const isFollowing = window.followingSet.has(nid);
+            const isFollower = window.followerSet.has(nid);
+            
+            if (isFollowing && isFollower) return showMutual;
+            if (isFollowing) return showFollowing;
+            if (isFollower) return showFollowers;
+            
+            return true; 
+        };
+
+        // 核心逻辑 2：动态执行过滤
+        window.Graph.nodeVisibility(node => {
+            return checkNodeVisible(String(node.id));
+        })
+        .linkVisibility(link => {
+            const s = String(link.source.id || link.source);
+            const t = String(link.target.id || link.target);
+            
+            // 如果连线的任何一端节点被隐藏了，这条线也必须隐藏！
+            if (!checkNodeVisible(s) || !checkNodeVisible(t)) return false;
+            
+            if (link.isVirtual) return showAI;
+            if (!link.isDirect) return show2nd; // 好友间连线跟随 2度开关
+            return true;
+        });
+    };
   </script>
 </body>
 </html>

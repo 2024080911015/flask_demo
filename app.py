@@ -852,6 +852,20 @@ def daily_retrain_task():
 # 引入 BackgroundScheduler
 from apscheduler.schedulers.background import BackgroundScheduler
 
+# ==========================================
+# 星图专用：获取全校实时头像映射表
+# ==========================================
+@app.route('/api/users/avatars', methods=['GET'])
+def get_all_avatars():
+    """实时返回所有有头像的用户的映射表，用于星图截胡 graph.json 的延迟"""
+    try:
+        accounts = Account.query.all()
+        avatar_map = {acc.uid: acc.avatar for acc in accounts if acc.avatar}
+        return jsonify({"status": "success", "avatars": avatar_map})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+
 if __name__ == "__main__":
     # 配置并启动定时器
     # 使用 BackgroundScheduler 不会阻塞主线程，Flask 可以照常运行
