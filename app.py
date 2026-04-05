@@ -496,6 +496,7 @@ def openclaw_chat():
     uid = session['uid']
     user_msg = request.json.get("message", "").strip()
     history = request.json.get("history", [])
+    page_context = request.json.get("page_context", {})  # 前端传来的当前页面上下文
     if not user_msg and not history:
         return jsonify({"status": "error", "message": "消息不能为空"}), 400
 
@@ -506,6 +507,65 @@ def openclaw_chat():
     followers_list = [u for u, fl in follow_dict.items() if uid in fl]
     followers_count = len(followers_list)
 
+    # 2. 构建页面上下文描述 (让 AI 知道用户当前正在看什么)
+    page_context_str = ""
+    if page_context:
+        active_panel = page_context.get("active_panel", "")
+        details = page_context.get("details", {})
+
+        if active_panel:
+            page_context_str += f"\n\n【用户当前正在浏览的页面】: {active_panel}\n"
+
+        if active_panel == "推荐交友":
+            vu = details.get("viewing_user", {})
+            if vu:
+                page_context_str += f"正在查看用户: {vu.get('username', '')} (ID:{vu.get('uid', '')}), 标签: {vu.get('tags', '')}\n"
+            recs = details.get("recommendations", [])
+            if recs:
+                page_context_str += f"系统为Ta推荐的好友列表:\n"
+                for i, r in enumerate(recs[:5], 1):
+                    page_context_str += f"  {i}. {r}\n"
+            report = details.get("social_report", {})
+            if report:
+                page_context_str += f"社交诊断: 地位={report.get('status','')}, 描述={report.get('description','')}, 建议={report.get('advice','')}\n"
+
+        elif active_panel == "关系管理":
+            page_context_str += f"Ta的关注数: {details.get('following_count', '0')}, 粉丝数: {details.get('followers_count', '0')}\n"
+            groups = details.get("friend_groups", [])
+            if groups:
+                page_context_str += f"好友分组: {'; '.join(groups)}\n"
+
+        elif active_panel == "找朋友":
+            sq = details.get("search_query", "")
+            if sq:
+                page_context_str += f"搜索关键词: {sq}\n"
+            page_context_str += f"搜索结果: {details.get('result_summary', '')}\n"
+            results = details.get("search_results", [])
+            if results:
+                page_context_str += "搜索到的用户:\n"
+                for i, r in enumerate(results[:5], 1):
+                    page_context_str += f"  {i}. {r}\n"
+
+        elif active_panel == "个人空间":
+            prof = details.get("profile", {})
+            if prof:
+                page_context_str += f"正在编辑个人资料: 用户名={prof.get('username','')}, 性别={prof.get('gender','')}, 年级={prof.get('grade','')}, 专业={prof.get('major','')}, 爱好={prof.get('hobbies','')}, 标签={prof.get('tags','')}\n"
+
+        elif active_panel == "全校生态大盘":
+            stats = details.get("global_stats", [])
+            if stats:
+                page_context_str += f"全校数据概览: {'; '.join(stats)}\n"
+            popular = details.get("popular_users", [])
+            if popular:
+                page_context_str += "校园风云人物排行:\n"
+                for i, p in enumerate(popular[:5], 1):
+                    page_context_str += f"  {i}. {p}\n"
+
+        # 用户名片弹窗
+        card = details.get("viewing_profile_card", {})
+        if card:
+            page_context_str += f"\n用户正在查看名片: {card.get('username','')} (ID:{card.get('uid','')}), 基本信息={card.get('basic_info','')}, 爱好={card.get('hobbies','')}, 社交连接数={card.get('connections','')}, 主导圈子={card.get('dominant_community','')}\n"
+
     # 给 Agent 设定人格并注入上下文 (Dynamic Prompting)
     system_prompt = f"""你现在的身份是这个校园社交平台的 AI 专属红娘与交友顾问 'Claw'。
 当前与你对话的同学 ID 是 {uid}，用户名是 {user_name_map.get(uid, '未知')}。
@@ -513,7 +573,9 @@ Ta 的个人资料和标签是：{user_info}。
 Ta 目前在平台关注了 {following_count} 个人，有 {followers_count} 个粉丝。
 请根据 Ta 的标签（例如是社恐、还是社牛、专业及爱好），用幽默热情的语气回答社交困惑、或者给出破冰建议。
 如果用户问到推荐交友相关的问题，请引导他们使用平台的 AI 智能推荐和关系管理功能。
-回答请简洁有趣，每次回复控制在 200 字以内。"""
+回答请简洁有趣，每次回复控制在 200 字以内。
+{page_context_str}
+【重要】如果用户的问题涉及到上面提到的页面内容（推荐列表、诊断报告、搜索结果、统计数据、某个用户的名片等），请直接结合这些具体数据来回答，不要泛泛而谈。"""
 
     # 组装聊天历史
     messages = [{"role": "system", "content": system_prompt}]
