@@ -1031,6 +1031,140 @@ window.closeUserModal = function() {
 //  OpenClaw AI 社交助手逻辑
 // ==========================================
 
+// 收集当前页面上下文，让 AI 能根据用户正在看的内容回答
+function getPageContext() {
+    const ctx = { active_panel: '', details: {} };
+
+    // 1. 判断当前激活的面板
+    const panels = [
+        { id: 'panel-recommend', name: '推荐交友' },
+        { id: 'panel-relations', name: '关系管理' },
+        { id: 'panel-search', name: '找朋友' },
+        { id: 'panel-profile', name: '个人空间' },
+        { id: 'panel-stats', name: '全校生态大盘' }
+    ];
+    for (const p of panels) {
+        const el = document.getElementById(p.id);
+        if (el && !el.classList.contains('hidden')) {
+            ctx.active_panel = p.name;
+            break;
+        }
+    }
+
+    // 2. 根据不同面板，提取用户正在浏览的具体数据
+    try {
+        if (ctx.active_panel === '推荐交友') {
+            // 提取当前查看的用户信息
+            const uid = document.getElementById('displayUserId')?.innerText || '';
+            const uname = document.getElementById('displayUsername')?.innerText || '';
+            const userTags = document.getElementById('displayUserInfo')?.innerText || '';
+            ctx.details.viewing_user = { uid, username: uname, tags: userTags };
+
+            // 提取推荐列表
+            const recCards = document.querySelectorAll('#recommendList > div');
+            const recs = [];
+            recCards.forEach(card => {
+                const text = card.innerText.replace(/\s+/g, ' ').trim();
+                if (text) recs.push(text);
+            });
+            ctx.details.recommendations = recs;
+
+            // 提取社交诊断报告
+            const diagTitle = document.getElementById('diagTitle')?.innerText || '';
+            const diagDesc = document.getElementById('diagDesc')?.innerText || '';
+            const diagAdvice = document.getElementById('diagAdvice')?.innerText || '';
+            if (diagTitle) {
+                ctx.details.social_report = {
+                    status: diagTitle,
+                    description: diagDesc,
+                    advice: diagAdvice
+                };
+            }
+        } else if (ctx.active_panel === '关系管理') {
+            const followingCount = document.getElementById('countFollowing')?.innerText || '0';
+            const followersCount = document.getElementById('countFollowers')?.innerText || '0';
+            ctx.details.following_count = followingCount;
+            ctx.details.followers_count = followersCount;
+
+            // 提取分组信息
+            const groups = [];
+            document.querySelectorAll('#followingGroupsContainer > details').forEach(detail => {
+                const summary = detail.querySelector('summary')?.innerText?.trim() || '';
+                groups.push(summary);
+            });
+            ctx.details.friend_groups = groups;
+        } else if (ctx.active_panel === '找朋友') {
+            const searchQuery = document.getElementById('globalSearchInput')?.value || '';
+            const resultCount = document.getElementById('searchResultCount')?.innerText || '';
+            ctx.details.search_query = searchQuery;
+            ctx.details.result_summary = resultCount;
+
+            // 提取搜索结果摘要（前5条）
+            const resultCards = document.querySelectorAll('#searchResultGrid > div');
+            const results = [];
+            resultCards.forEach((card, i) => {
+                if (i < 5) results.push(card.innerText.replace(/\s+/g, ' ').trim());
+            });
+            ctx.details.search_results = results;
+        } else if (ctx.active_panel === '个人空间') {
+            const profUsername = document.getElementById('prof-username')?.value || '';
+            const profGender = document.getElementById('prof-gender')?.value || '';
+            const profGrade = document.getElementById('prof-grade')?.value || '';
+            const profMajor = document.getElementById('prof-major')?.value || '';
+
+            const hobbies = Array.from(document.querySelectorAll('input[name="prof_hobbies"]:checked')).map(n => n.value);
+            const tags = Array.from(document.querySelectorAll('input[name="prof_tags"]:checked')).map(n => n.value);
+
+            ctx.details.profile = {
+                username: profUsername,
+                gender: profGender,
+                grade: profGrade,
+                major: profMajor,
+                hobbies: hobbies.join('、'),
+                tags: tags.join('、')
+            };
+        } else if (ctx.active_panel === '全校生态大盘') {
+            const statsCards = document.querySelectorAll('#globalStatsContainer > div');
+            const stats = [];
+            statsCards.forEach(card => {
+                stats.push(card.innerText.replace(/\s+/g, ' ').trim());
+            });
+            ctx.details.global_stats = stats;
+
+            // 提取风云人物
+            const popCards = document.querySelectorAll('#popularList > div');
+            const popular = [];
+            popCards.forEach((card, i) => {
+                if (i < 5) popular.push(card.innerText.replace(/\s+/g, ' ').trim());
+            });
+            ctx.details.popular_users = popular;
+        }
+    } catch (e) {
+        console.warn('收集页面上下文时出错', e);
+    }
+
+    // 3. 检查是否有打开的用户名片弹窗
+    const modal = document.getElementById('userProfileModal');
+    if (modal && !modal.classList.contains('hidden')) {
+        const modalUser = document.getElementById('modalUsername')?.innerText || '';
+        const modalUid = document.getElementById('modalUid')?.innerText || '';
+        const modalBasic = document.getElementById('modalBasicInfo')?.innerText || '';
+        const modalHobbies = document.getElementById('modalHobbiesInfo')?.innerText || '';
+        const modalConn = document.getElementById('modalConnCount')?.innerText || '';
+        const modalComm = document.getElementById('modalDominantComm')?.innerText || '';
+        ctx.details.viewing_profile_card = {
+            username: modalUser,
+            uid: modalUid,
+            basic_info: modalBasic,
+            hobbies: modalHobbies,
+            connections: modalConn,
+            dominant_community: modalComm
+        };
+    }
+
+    return ctx;
+}
+
 // 安全：转义 HTML 特殊字符，防止 XSS
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -1143,6 +1277,10 @@ window.sendToAgent = async function() {
     window.chatHistory = window.chatHistory || [];
     window.chatHistory.push({ role: 'user', content: msg });
 
+    // 获取页面上下文（调试）
+    const pageContext = getPageContext();
+    console.log('【AI页面上下文】', pageContext);
+
     // 渲染用户的消息卡片 (使用 textContent 防止 XSS)
     window.renderChatMsg('user', msg, chatBox);
 
@@ -1167,9 +1305,10 @@ window.sendToAgent = async function() {
         const res = await fetch('/api/agent/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 message: msg,
-                history: window.chatHistory 
+                history: window.chatHistory,
+                page_context: pageContext
             })
         });
         const data = await res.json();
