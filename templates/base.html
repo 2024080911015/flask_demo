@@ -18,6 +18,21 @@
 </head>
 <body>
     {% block content %}{% endblock %}
-    <script src="/static/js/app.js"></script>
+
+    <!-- 1. 核心与工具层 -->
+    <script src="/static/js/core.js"></script>
+    <script src="/static/js/modals.js"></script>
+    <script src="/static/js/sidebar.js"></script>
+    
+    <!-- 2. 独立业务模块 -->
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/agent.js"></script>
+    
+    <!-- 3. 五大面板视图层 -->
+    <script src="/static/js/panels/recommend.js"></script>
+    <script src="/static/js/panels/relations.js"></script>
+    <script src="/static/js/panels/profile.js"></script>
+    <script src="/static/js/panels/search.js"></script>
+    <script src="/static/js/panels/stats.js"></script>
 </body>
 </html>
