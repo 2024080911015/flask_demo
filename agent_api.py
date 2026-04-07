@@ -7,8 +7,10 @@ from models import db, ChatHistory
 # 定义为独立蓝图
 agent_bp = Blueprint('agent', __name__)
 
-OPENCLAW_API_URL = os.environ.get("OPENCLAW_API_URL", "http://127.0.0.1:18789/v1/chat/completions")
-OPENCLAW_API_KEY = os.environ.get("OPENCLAW_API_KEY", "flask-social-2026")
+# DeepSeek API 配置
+DEEPSEEK_API_URL = os.environ.get("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")  # 请填入你的 DeepSeek API Key
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")  # 可选: deepseek-chat, deepseek-reasoner
 
 @agent_bp.route('/api/agent/chat', methods=['POST'])
 def openclaw_chat():
@@ -47,8 +49,8 @@ Ta 目前关注了 {len(following_list)} 人，有 {len(followers_list)} 个粉�
         messages.append({"role": "user", "content": user_msg})
 
     try:
-        resp = http_requests.post(OPENCLAW_API_URL, json={"model": "", "messages": messages}, 
-                                  headers={"Authorization": f"Bearer {OPENCLAW_API_KEY}", "Content-Type": "application/json"}, timeout=60)
+        resp = http_requests.post(DEEPSEEK_API_URL, json={"model": DEEPSEEK_MODEL, "messages": messages}, 
+                                  headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"}, timeout=60)
         resp_data = resp.json()
         if "choices" in resp_data and len(resp_data["choices"]) > 0:
             reply = resp_data["choices"][0]["message"]["content"]
