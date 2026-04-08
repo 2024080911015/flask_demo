@@ -1,0 +1,27 @@
+<div id="panel-inbox" class="panel-content hidden p-4 md:p-6 max-w-3xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-serif font-bold text-stone-800">💌 收件箱</h2>
+        <button onclick="InboxView.load()" class="text-xs text-stone-400 hover:text-amber-600 transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            刷新
+        </button>
+    </div>
+
+    <!-- 加载中 -->
+    <div id="inboxLoading" class="flex flex-col items-center justify-center py-20 text-stone-300">
+        <div class="w-8 h-8 border-2 border-amber-300 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p class="text-sm">正在加载留言...</p>
+    </div>
+
+    <!-- 空状态 -->
+    <div id="inboxEmpty" class="hidden flex flex-col items-center justify-center py-24 text-stone-300">
+        <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        <p class="text-base font-medium text-stone-400">暂无留言</p>
+        <p class="text-sm mt-1 text-stone-300">快去探索新朋友吧 ✨</p>
+    </div>
+
+    <!-- 留言列表 -->
+    <div id="inboxList" class="hidden space-y-4"></div>
+</div>

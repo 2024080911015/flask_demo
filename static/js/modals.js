@@ -45,6 +45,9 @@ window.openUserModal = async function(explicitId) {
         document.getElementById('modalDominantComm').innerText = rData.distribution.length > 0 ? rData.distribution[0].name : "暂无";
         
         document.getElementById('modalFollowBtnContainer').innerHTML = getFollowButtonHTML(sid);
+
+        // 挂载破冰留言组件
+        if (window.MessageSender) window.MessageSender.mount(sid);
     } catch(e) {
         document.getElementById('modalUsername').innerText = "用户不存在";
     }
