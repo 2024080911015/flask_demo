@@ -253,9 +253,24 @@ def get_social_report():
         distribution.sort(key=lambda x: x['percent'], reverse=True)
 
     advice = "系统建议：你的圈层非常丰富多元！继续保持开放的社交态度，你是连接不同群体的重要桥梁。"
-    if total_connections == 0: advice = "系统建议：不妨先在上方【AI 智能推荐】里逛逛，试着关注几个带有相似标签的同学破冰吧！"
-    elif dominant_comm == "考研圈": advice = "系统建议：你的好友大部分都在为学业奋斗，学习氛围浓厚。但也请注意劳逸结合，建议尝试去结交一些【运动圈】的同学。"
-    elif dominant_comm == "硬核极客圈": advice = "系统建议：你的技术交流圈子已经初步成型。可以多参加线下的黑客松或开源项目，将线上好友转化为线下的合伙人。"
+    if total_connections == 0:
+        advice = "系统建议：不妨先在上方【AI 智能推荐】里逛逛，试着关注几个带有相似标签的同学破冰吧！"
+    elif total_connections <= 20:
+        advice = "系统建议：作为萌新节点，多与现有好友互动，通过他们的朋友圈子发现更多志同道合的同学。"
+    elif dominant_comm == "运动健将圈":
+        advice = "系统建议：你的运动氛围浓厚，活力满满！可以尝试组织一些户外活动，让更多同学感受到运动的魅力。"
+    elif dominant_comm == "文艺星人圈":
+        advice = "系统建议：你身边聚集了不少文艺爱好者，可以尝试一起组织艺术展览或小型演出，展示才华的同时增进感情。"
+    elif dominant_comm == "硬核极客圈":
+        advice = "系统建议：你的技术交流圈子已经初步成型。可以多参加线下的黑客松或开源项目，将线上好友转化为线下的合伙人。"
+    elif dominant_comm == "二次元宅圈":
+        advice = "系统建议：你们有着共同的二次元文化，可以一起参加漫展或组织观影会，在虚拟世界中找到现实友谊。"
+    elif dominant_comm == "社牛风云圈":
+        advice = "系统建议：你的社交能力很强，是圈子里的人气担当！可以尝试组织一些社交活动，帮助大家更好地认识彼此。"
+    elif dominant_comm == "佛系养生圈":
+        advice = "系统建议：你们追求慢节奏的生活，这种态度很珍贵。可以一起尝试一些养生活动，如冥想、茶道等。"
+    elif dominant_comm == "爆肝修仙圈":
+        advice = "系统建议：大家都在为了目标努力奋斗，彼此是最好的陪伴。记得互相提醒休息，劳逸结合才能走得更远。"
 
     return jsonify({"student_id": sid, "status": {"title": status_title, "description": status_desc, "total_connections": total_connections}, "distribution": distribution, "advice": advice})
 
