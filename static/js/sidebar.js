@@ -26,4 +26,5 @@ window.switchMenu = function(menuName) {
     if (menuName === 'relations' && State.user && typeof loadRelations === 'function') loadRelations();
     if (menuName === 'profile' && State.user && typeof loadProfile === 'function') loadProfile();
     if (menuName === 'stats' && typeof fetchStats === 'function') fetchStats();
+    if (menuName === 'inbox' && window.InboxView) window.InboxView.load();
 };

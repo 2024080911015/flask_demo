@@ -31,7 +31,19 @@ class FriendMapping(db.Model):
     target_uid = db.Column(db.Integer, nullable=False)
     group_id = db.Column(db.Integer, nullable=False)
 
-# 4. 聊天历史模型 (AI 专属)
+# 4. 破冰留言模型
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    sender_id = db.Column(db.Integer, nullable=False, index=True)
+    receiver_id = db.Column(db.Integer, nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
+    # 唯一约束：每对 sender→receiver 只能有一条留言
+    __table_args__ = (db.UniqueConstraint('sender_id', 'receiver_id', name='uq_sender_receiver'),)
+
+# 5. 聊天历史模型 (AI 专属)
 class ChatHistory(db.Model):
     __tablename__ = 'chat_history'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

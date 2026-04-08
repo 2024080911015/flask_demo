@@ -328,6 +328,67 @@ def api_current_user():
     if 'uid' in session: return jsonify({"status": "success", "logged_in": True, "data": {"uid": session['uid'], "username": session['username']}}), 200
     return jsonify({"status": "success", "logged_in": False}), 200
 
+# ── 破冰留言 ──────────────────────────────
+@app.route('/api/message/send', methods=['POST'])
+def send_message():
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+    from models import Message
+    from datetime import datetime
+    data = request.get_json() or {}
+    receiver_id = data.get('receiver_id')
+    content = (data.get('content') or '').strip()
+    if not receiver_id or not content:
+        return jsonify({"status": "error", "message": "参数不完整"}), 400
+    if len(content) > 500:
+        return jsonify({"status": "error", "message": "留言不能超过500字"}), 400
+    sender_id = session['uid']
+    if sender_id == int(receiver_id):
+        return jsonify({"status": "error", "message": "不能给自己留言"}), 400
+    # 检查是否已留言过
+    exists = Message.query.filter_by(sender_id=sender_id, receiver_id=int(receiver_id)).first()
+    if exists:
+        return jsonify({"status": "error", "error": "你已经给该用户留过言了"}), 403
+    try:
+        msg = Message(sender_id=sender_id, receiver_id=int(receiver_id),
+                      content=content, created_at=datetime.utcnow())
+        db.session.add(msg)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "留言发送成功"}), 200
+    except Exception as e:
+        db.session.rollback()
+        # 唯一约束触发时也视为已留言
+        if 'UNIQUE' in str(e).upper():
+            return jsonify({"status": "error", "error": "你已经给该用户留过言了"}), 403
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/message/inbox', methods=['GET'])
+def get_inbox():
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+    from models import Message
+    receiver_id = session['uid']
+    msgs = Message.query.filter_by(receiver_id=receiver_id).order_by(Message.created_at.desc()).all()
+    result = []
+    for m in msgs:
+        sender_acc = Account.query.get(m.sender_id)
+        avatar_url = f'/api/user/avatar/{m.sender_id}' if (sender_acc and sender_acc.avatar) else None
+        result.append({
+            "message_id": m.id,
+            "sender_id": m.sender_id,
+            "sender_name": sender_acc.username if sender_acc else f"用户{m.sender_id}",
+            "avatar": avatar_url,
+            "content": m.content,
+            "created_at": m.created_at.strftime('%Y-%m-%d %H:%M'),
+            "is_read": m.is_read
+        })
+        # 标记为已读
+        if not m.is_read:
+            m.is_read = True
+    db.session.commit()
+    return jsonify({"status": "success", "data": result}), 200
+# ─────────────────────────────────────────
+
 @app.route('/api/user/update', methods=['POST'])
 def update_user_profile():
     if 'uid' not in session: return jsonify({"status": "error", "message": "未登录"}), 401
