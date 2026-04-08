@@ -99,13 +99,61 @@ def get_community():
     return jsonify({"status": "success", "communities": list(COMMUNITY_RULES.keys())})
 
 @app.route('/tuijian')
+# 修改 1：推荐接口 (加入冷启动双路降级召回策略)
+@app.route('/tuijian')
 def tuijian():
     sid = request.args.get('id', default=None, type=int)
     mode = request.args.get('mode', default='social', type=str)
     community_tag = request.args.get('community', default=None, type=str)
     if sid is None: return jsonify({"error": "Missing id"}), 400
     
-    rec_ids = step3_recommend.recommend_friends(sid, top_k=5, mode=mode, community=community_tag)
+    # ==================================================
+    # 🚀 核心学术创新：冷启动双路降级召回 (Dual-path Fallback)
+    # ==================================================
+    is_cold_start = False
+    try:
+        import step3_recommend
+        # 假设 embeddings 里只有 1000 个人，新注册的 sid=1001 就会越界
+        if sid > step3_recommend.embeddings.shape[0]:
+            is_cold_start = True
+    except:
+        is_cold_start = True
+
+    rec_ids =[]
+    
+    if is_cold_start:
+        # 新用户没有图节点，改用纯特征文本重合度匹配 (Content-based)
+        import re
+        target_info = user_info_map.get(sid, "")
+        # 提取当前新用户的特征词汇 (专业、标签、爱好等)
+        target_words = set(re.findall(r'[\u4e00-\u9fa5]+', target_info))
+        
+        scores =[]
+        for uid, info in user_info_map.items():
+            if uid == sid: continue # 不推荐自己
+            
+            # 如果指定了圈层，先过滤圈层
+            if community_tag:
+                comm_keywords = COMMUNITY_RULES.get(community_tag,[])
+                if not any(kw in info for kw in comm_keywords):
+                    continue
+                    
+            # 计算该老用户和新用户的“特征重合词数量”
+            words = set(re.findall(r'[\u4e00-\u9fa5]+', info))
+            overlap = len(target_words & words) # 计算交集
+            scores.append((uid, overlap))
+            
+        # 按特征重合度从大到小排序，取前 5 名
+        scores.sort(key=lambda x: x[1], reverse=True)
+        rec_ids = [u for u, score in scores[:5]]
+        mode = "content_based (冷启动降级)" # 改变标识，方便排查
+    else:
+        # 💡 老用户：正常走 GNN 时序图网络高级推荐
+        rec_ids = step3_recommend.recommend_friends(sid, top_k=5, mode=mode, community=community_tag)
+
+    # ==================================================
+
+    # 返回带有 username 的字典
     rec_data_list =[{"id": rid, "username": user_name_map.get(rid, f"User_{rid}"), "info": user_info_map.get(rid, f"未知")} for rid in rec_ids]
     
     return jsonify({
