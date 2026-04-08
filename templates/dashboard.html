@@ -1,11 +1,30 @@
 <!-- PAGE 3: 模块化后台控制台 -->
 <div id="page-dashboard" class="page bg-stone-50" style="overflow-y: hidden;">
-    <div class="flex h-screen w-full">
+    <!-- 移动端侧边栏的遮罩层 -->
+    <div id="sidebarOverlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden transition-opacity opacity-0 pointer-events-none"></div>
+
+    <div class="flex h-screen w-full flex-col md:flex-row relative overflow-hidden">
         
+        <!-- 移动端顶部 Header (固定在顶部) -->
+        <header class="md:hidden flex items-center justify-between bg-white px-4 border-b border-stone-200 h-14 shrink-0 z-30 relative">
+            <span class="font-serif text-amber-700 text-lg font-bold">校园社交</span>
+            <button onclick="toggleMobileMenu()" class="text-stone-600 focus:outline-none p-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
+        </header>
+
         <!-- ================= 左侧导航栏 (完整版) ================= -->
-        <aside class="w-64 bg-white border-r border-stone-200 flex flex-col shrink-0 shadow-sm z-20">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out w-64 bg-white border-r border-stone-200 flex flex-col shrink-0 shadow-sm z-40 md:z-20 h-full">
+            <button onclick="toggleMobileMenu()" class="md:hidden absolute top-4 right-4 text-stone-400 hover:text-stone-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            
             <!-- Logo 区 -->
-            <div class="h-16 flex items-center px-6 border-b border-stone-100">
+            <div class="h-16 flex items-center px-6 border-b border-stone-100 mt-2 md:mt-0">
                 <span class="font-serif text-amber-700 text-xl font-bold">校园社交<span id="adminBadge" class="hidden ml-2 text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-full font-sans">管理员</span></span>
             </div>
 
@@ -68,7 +87,7 @@
 
             <!-- ================= OpenClaw AI 社交助手浮窗 ================= -->
             <!-- 聊天窗口 -->
-            <div id="ai-agent-widget" class="fixed bottom-24 right-6 w-96 bg-white rounded-2xl shadow-2xl border border-amber-200/60 hidden flex-col z-50 overflow-hidden transition-all duration-300" style="max-height: 520px;">
+            <div id="ai-agent-widget" class="fixed bottom-20 md:bottom-24 right-2 md:right-6 w-[95%] md:w-96 bg-white rounded-2xl shadow-2xl border border-amber-200/60 hidden flex-col z-50 overflow-hidden transition-all duration-300" style="max-height: 80vh; md:max-height: 520px;">
                 <!-- 标题栏 -->
                 <div class="bg-gradient-to-r from-amber-500 via-orange-400 to-amber-500 p-4 flex justify-between items-center text-white cursor-pointer select-none" onclick="toggleAgent()">
                     <div class="flex items-center gap-2">
@@ -115,4 +134,27 @@
 
         </main>
     </div>
+    
+    <script>
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            if (sidebar.classList.contains('-translate-x-full')) {
+                // 打开菜单
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => {
+                    overlay.classList.remove('opacity-0', 'pointer-events-none');
+                }, 10);
+            } else {
+                // 关闭菜单
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 300);
+            }
+        }
+    </script>
 </div>
