@@ -44,7 +44,7 @@
 
     let fullData = { nodes: [], links:[] };
     let isAvatarMode = false; 
-    let isFullGraph = true; // 🚀 新增：用来判断当前是否是全校图
+    let isFullGraph = true; 
     const cacheBuster = Math.random();
 
     const commColors = {
@@ -71,11 +71,13 @@
         const ctx = canvas.getContext('2d');
         const ringColor = commColors[node.community] || '#ffffff';
 
+        // 彻底清空背景
         ctx.clearRect(0, 0, canvasSize, canvasSize);
 
         const center = canvasSize / 2;
-        const lineWidth = 12;
-        const radius = center - lineWidth; 
+        const lineWidth = 10;
+        // 🚀 核心修复 1：留白 20 给光晕，防止越界被裁切
+        const radius = center - lineWidth - 20; 
 
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
@@ -88,12 +90,15 @@
             ctx.arc(center, center, radius, 0, 2 * Math.PI);
             ctx.lineWidth = lineWidth;
             ctx.strokeStyle = ringColor;
+            ctx.shadowColor = ringColor;
+            ctx.shadowBlur = 20; // 边缘发光
             ctx.stroke();
             
             ctx.beginPath();
             ctx.arc(center, center, radius, 0, 2 * Math.PI);
             ctx.lineWidth = 2;
             ctx.strokeStyle = '#ffffff';
+            ctx.shadowBlur = 0;
             ctx.stroke();
 
             texture.needsUpdate = true;
@@ -104,25 +109,29 @@
             img.crossOrigin = "Anonymous";
             img.src = `/static/avatars/${node.avatar}?t=${cacheBuster}`;
             img.onload = () => {
+                ctx.clearRect(0, 0, canvasSize, canvasSize);
                 ctx.save();
                 ctx.beginPath();
-                ctx.arc(center, center, radius, 0, 2 * Math.PI);
+                ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
                 ctx.clip(); 
-                ctx.drawImage(img, lineWidth, lineWidth, canvasSize - 2*lineWidth, canvasSize - 2*lineWidth);
+                // 🚀 核心修复 2：加上压暗滤镜！绝不触发 Bloom 溢出成小太阳！
+                ctx.filter = 'brightness(80%) contrast(110%)'; 
+                ctx.drawImage(img, center - radius, center - radius, radius*2, radius*2);
                 ctx.restore();
                 drawNeonRing();
             };
         } else {
+            ctx.clearRect(0, 0, canvasSize, canvasSize);
             ctx.save();
             ctx.beginPath();
-            ctx.arc(center, center, radius, 0, 2 * Math.PI);
+            ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
             ctx.clip();
             ctx.fillStyle = '#1e293b';
             ctx.fill();
-            ctx.font = 'bold 120px sans-serif';
+            ctx.font = 'bold 90px sans-serif';
             ctx.fillStyle = '#cbd5e1'; 
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText((node.username || 'U').charAt(0).toUpperCase(), center, center + 10);
+            ctx.fillText((node.username || 'U').charAt(0).toUpperCase(), center, center + 8);
             ctx.restore();
             drawNeonRing();
         }
@@ -130,9 +139,7 @@
       })
       .nodeLabel(node => `<div class="node-tooltip"><div class="name">👤 ${node.username||'User'} 【${node.community||'未知'}】</div>${(node.info||'').replace(/,/g, '<br/>')}</div>`)
       
-      // 🚀 核心逻辑 1：动态切换连线的粗细和颜色！
-      // 全校图：极细极淡 (rgba(255,255,255, 0.05), width 0.1)
-      // 特定圈层：粗亮线 (rgba(140, 180, 255, 0.4), width 0.8)
+      // 维持动态切换粗细逻辑
       .linkColor(() => isFullGraph ? 'rgba(255, 255, 255, 0.05)' : 'rgba(140, 180, 255, 0.4)') 
       .linkWidth(() => isFullGraph ? 0.1 : 0.8)
       
@@ -159,9 +166,8 @@
     window.filterByCommunity = function() { 
       const comm = document.getElementById('community-select').value;
       
-      // 🚀 核心逻辑 2：状态判定与样式强制重绘
       isFullGraph = (comm === "ALL");
-      Graph.linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()); // 强行触发连线样式更新
+      Graph.linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()); 
 
       if (isFullGraph) { 
           Graph.nodeVisibility(() => true).linkVisibility(() => true);
