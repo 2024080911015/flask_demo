@@ -57,23 +57,32 @@ window.searchUser = async function(explicitId) {
 
         const rc = document.getElementById('recommendList');
         rc.innerHTML = '';
+
         if (!td.recommend_friends?.length) {
             rc.innerHTML = `<div class="col-span-2 flex flex-col items-center py-8 text-stone-300"><p class="text-sm">暂无推荐结果</p></div>`;
         } else {
             td.recommend_friends.forEach((item, i) => {
                 const t = parseInfoTags(item.info);
+                const avatarId = `rec-avatar-${item.id}`; // 🚀 核心修复：为头像分发唯一 ID
+                
                 rc.innerHTML += `
                 <div class="flex-1 p-4 rounded-xl border border-stone-100 hover:border-amber-200 bg-white shadow-sm flex items-center justify-between transition group">
                     <div class="flex items-center gap-4 cursor-pointer hover:opacity-80 w-full" onclick="openUserModal(${item.id})">
                         <span class="font-serif text-xl font-bold text-stone-200 group-hover:text-amber-400 transition w-6 text-center">#${i+1}</span>
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center font-bold text-amber-700 shadow-inner border border-white shrink-0">${(item.username||'U').charAt(0).toUpperCase()}</div>
+                        <!--  核心修复：挂载 ID -->
+                        <div id="${avatarId}" class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center font-bold text-amber-700 shadow-inner border border-white shrink-0">${(item.username||'U').charAt(0).toUpperCase()}</div>
                         <div>
                             <div class="font-bold text-stone-800 text-sm">${item.username||'User'} <span class="text-stone-400 font-mono text-[10px] font-normal ml-1">#${item.id}</span></div>
                             <div class="flex flex-wrap gap-1 mt-1">${t.basic} ${t.hobbies}</div>
                         </div>
                     </div>
-                    <div class="shrink-0 ml-4 relative z-10">${getFollowButtonHTML(item.id)}</div>
+                    <div class="shrink-0 ml-4 relative z-10">
+                        ${getFollowButtonHTML(item.id)}
+                    </div>
                 </div>`;
+                
+                //  追加：通知全局 State 去拉取并填充真实头像！
+                setTimeout(() => State.loadAvatar(item.id, avatarId), 10);
             });
         }
         window.renderDiagnostic(rd);

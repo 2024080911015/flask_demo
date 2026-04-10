@@ -59,7 +59,7 @@
   <div id="legend">
     <div style="font-weight: bold; color: #38bdf8; margin-bottom: 8px; border-bottom: 1px solid #475569; padding-bottom: 5px;">星环关系说明</div>
     <div>🟡 <span style="color:#fbbf24; font-weight:bold;">金色光环 (你自己)</span></div>
-    <div>🟠 <span style="color:#f59e0b;">黄色光环 (互相关注)</span></div>
+    <div>🟠 <span style="color:#f59e0b; font-weight:bold;">黄色光环 (互相关注)</span></div>
     <div>🔵 <span style="color:#3b82f6;">蓝色光环 (你的关注)</span></div>
     <div>⚪ <span style="color:#9ca3af;">灰色光环 (你的粉丝)</span></div>
     <div>✨ <span style="color:#00ffcc; font-weight:bold;">青色流光 (AI预测好友)</span></div>
@@ -80,19 +80,34 @@
     if (!centerUid || centerUid === 'null') {
       document.getElementById('loading').innerText = "❌ 缺少 uid 参数！";
     } else {
+      //  核心修复：这里请求的是全校头像接口 (/api/users/avatars)！
+      const currentTimestamp = new Date().getTime();
       Promise.all([
-        fetch('/static/graph.json?t=' + Math.random()).then(res => res.json()),
-        fetch(`/api/user/avatar/${centerUid}`).then(res => res.json()).catch(() => ({}))
-      ]).then(([graphData, avatarData]) => {
+        fetch('/static/graph.json?t=' + currentTimestamp).then(res => res.json()),
+        fetch('/api/users/avatars?t=' + currentTimestamp).then(res => res.json()).catch(err => {
+            console.error("请求实时头像库失败", err);
+            return { avatars: {} };
+        })
+      ]).then(([graphData, avatarRes]) => {
           document.getElementById('loading').style.display = 'none';
+
+          const realtimeAvatars = {};
+          if (avatarRes && avatarRes.avatars) {
+              for (let uidKey in avatarRes.avatars) {
+                  realtimeAvatars[String(uidKey)] = avatarRes.avatars[uidKey];
+              }
+          }
 
           let adjacencyList = {};
           const followingSet = new Set(); 
           const followerSet = new Set();  
 
-          graphData.nodes.forEach(n => {
+         graphData.nodes.forEach(n => {
               adjacencyList[String(n.id)] = new Set();
-              if (String(n.id) === centerUid && avatarData.avatar) n.avatar = avatarData.avatar;
+              const strId = String(n.id);
+              if (realtimeAvatars[strId]) {
+                  n.avatar = realtimeAvatars[strId];
+              }
           });
           
           graphData.links.forEach(l => {
@@ -303,11 +318,10 @@
             const s = String(link.source.id || link.source);
             const t = String(link.target.id || link.target);
             
-            // 如果连线的任何一端节点被隐藏了，这条线也必须隐藏！
             if (!checkNodeVisible(s) || !checkNodeVisible(t)) return false;
             
             if (link.isVirtual) return showAI;
-            if (!link.isDirect) return show2nd; // 好友间连线跟随 2度开关
+            if (!link.isDirect) return show2nd; 
             return true;
         });
     };

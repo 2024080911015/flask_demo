@@ -54,7 +54,6 @@
     };
 
     const Graph = ForceGraph3D()(document.getElementById('3d-graph'))
-      .jsonUrl('/static/graph.json?t=' + cacheBuster)
       .backgroundColor('#000005') 
       .nodeRelSize(4)
       .nodeVal(node => Math.sqrt(node.val || 1) * 0.8)
@@ -107,7 +106,7 @@
         if (node.avatar) {
             const img = new Image();
             img.crossOrigin = "Anonymous";
-            img.src = `/static/avatars/${node.avatar}?t=${cacheBuster}`;
+            img.src = `/static/avatars/${node.avatar}?t=${Date.now()}`; // 强制最新
             img.onload = () => {
                 ctx.clearRect(0, 0, canvasSize, canvasSize);
                 ctx.save();
@@ -152,16 +151,33 @@
     bloomPass.radius = 0.15;    
     Graph.postProcessingComposer().addPass(bloomPass);
 
-    const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(3000 * 3);
-    for (let i = 0; i < 9000; i++) { starPositions[i] = (Math.random() - 0.5) * 1000; }
-    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0.6 });
-    Graph.scene().add(new THREE.Points(starGeometry, starMaterial));
+    // 核心修复 2：手动 Fetch 图谱和实时头像，融合后再喂给 Graph！
+    const currentTimestamp = new Date().getTime();
+     Promise.all([
+        fetch(`/static/graph.json?t=${currentTimestamp}`).then(res => res.json()),
+        fetch(`/api/users/avatars?t=${currentTimestamp}`).then(res => res.json()).catch(err => {
+            console.error("请求实时头像库失败", err);
+            return { avatars: {} };
+        })
+    ]).then(([graphData, avatarRes]) => {
 
-    fetch(`/static/graph.json?t=${cacheBuster}`)
-      .then(res => res.json())
-      .then(data => fullData = data);
+        const realtimeAvatars = {};
+        if (avatarRes && avatarRes.avatars) {
+            for (let uidKey in avatarRes.avatars) {
+                realtimeAvatars[String(uidKey)] = avatarRes.avatars[uidKey];
+            }
+        }
+        graphData.nodes.forEach(n => {
+            const strId = String(n.id);
+            // 强行把实时数据库里的头像覆盖上去
+            if (realtimeAvatars[strId]) {
+                n.avatar = realtimeAvatars[strId]; 
+            }
+        });
+        fullData = graphData;
+        // 初始渲染
+        filterByCommunity();
+    });
 
     window.filterByCommunity = function() { 
       const comm = document.getElementById('community-select').value;
@@ -170,8 +186,10 @@
       Graph.linkColor(Graph.linkColor()).linkWidth(Graph.linkWidth()); 
 
       if (isFullGraph) { 
+          Graph.graphData(fullData); // 恢复全图
           Graph.nodeVisibility(() => true).linkVisibility(() => true);
       } else {
+          Graph.graphData(fullData); // 必须先传入数据
           Graph.nodeVisibility(node => node.community === comm)
                .linkVisibility(link => {
                    const sComm = (typeof link.source === 'object') ? link.source.community : '';
