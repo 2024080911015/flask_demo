@@ -26,26 +26,30 @@ def get_semantic_community(info_str):
     return best_comm
 
 def generate_graph_json():
-    print("🌌 正在启动神经图谱构建与语义社区映射...")
+    print("🌌 正在构建包含签名与状态的神经图谱...")
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
     db_path = os.path.join(current_dir, 'campus_social.db')
+    
     account_dict = {}
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT uid, username, avatar FROM accounts")
+        # 🚀 核心修复：查询语句必须包含 signature 和 status
+        cursor.execute("SELECT uid, username, avatar, signature, status FROM accounts")
         for row in cursor.fetchall():
-            account_dict[row[0]] = {'username': row[1], 'avatar': row[2]}
+            account_dict[row[0]] = {
+                'username': row[1], 
+                'avatar': row[2],
+                'signature': row[3], # 索引 3
+                'status': row[4]      # 索引 4
+            }
         conn.close()
     except Exception as e:
-        print(f"⚠️ 读取数据库账号信息失败: {e}")
+        print(f"⚠️ 读取数据库信息失败: {e}")
 
     users_csv = os.path.join(current_dir, 'users.csv')
     edges_csv = os.path.join(current_dir, 'edges_time.csv')
     output_json = os.path.join(current_dir, 'static', 'graph.json')
-
-    os.makedirs(os.path.join(current_dir, 'static'), exist_ok=True)
 
     try:
         df_users = pd.read_csv(users_csv, encoding='utf-8')
@@ -55,49 +59,41 @@ def generate_graph_json():
     df_edges = pd.read_csv(edges_csv)
     df_edges = df_edges[(df_edges['source_id'] > 0) & (df_edges['target_id'] > 0)]
 
-    # 构建无向图仅用于社区聚类
     G = nx.Graph()
     for _, row in df_users.iterrows():
         G.add_node(int(row['uid']), info=row['info'])
-
     for _, row in df_edges.iterrows():
         G.add_edge(int(row['source_id']), int(row['target_id']))
 
     partition = community_louvain.best_partition(G)
     degrees = dict(G.degree())
 
-    nodes_data =[]
+    nodes_data = []
     for node_id in G.nodes():
-        info_str = G.nodes[node_id].get('info', '性别:未知,标签:无标签')
+        info_str = G.nodes[node_id].get('info', '无标签')
         semantic_comm = get_semantic_community(info_str)
         
-        acc_info = account_dict.get(int(node_id), {})
-        username = acc_info.get('username', f"User_{node_id}")
-        avatar = acc_info.get('avatar', None)
+        acc = account_dict.get(int(node_id), {})
         
+        # 🚀 核心修复：将新字段压入 JSON 节点
         nodes_data.append({
             "id": str(node_id),
-            "username": username, 
-            "avatar": avatar,     
+            "username": acc.get('username', f"User_{node_id}"),
+            "avatar": acc.get('avatar', None),
+            "signature": acc.get('signature', ""), 
+            "status": acc.get('status', ""),       
             "info": info_str,
             "val": degrees.get(node_id, 0) * 2 + 5,
             "group": partition.get(node_id, 0),
             "community": semantic_comm
         })
 
-    # 🚀 核心修复：坚决不使用 G.edges()！
-    # 直接遍历原始 df_edges，100% 锁死 Source(关注者) 和 Target(被关注者) 的方向！
-    links_data =[]
-    for _, row in df_edges.iterrows():
-        links_data.append({
-            "source": str(int(row['source_id'])),
-            "target": str(int(row['target_id']))
-        })
+    links_data = [{"source": str(int(row['source_id'])), "target": str(int(row['target_id']))} for _, row in df_edges.iterrows()]
 
     with open(output_json, 'w', encoding='utf-8') as f:
         json.dump({"nodes": nodes_data, "links": links_data}, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ 神经图谱生成完毕！已完美保全所有的关注/粉丝有向逻辑！")
+    print(f"✅ 包含签名与状态的 graph.json 生成完毕！")
     return True
 
 if __name__ == "__main__":

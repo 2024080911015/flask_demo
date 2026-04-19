@@ -259,32 +259,80 @@ def api_current_user():
 
 @app.route('/api/user/update', methods=['POST'])
 def update_user_profile():
-    if 'uid' not in session: return jsonify({"status": "error", "message": "未登录"}), 401
+    if 'uid' not in session: 
+        return jsonify({"status": "error", "message": "未登录"}), 401
+    
     uid = session['uid']
     data = request.json
+    
+    # 1. 签名长度校验（30字限制）
+    signature = data.get('signature', '').strip()
+    if len(signature) > 30:
+        return jsonify({"status": "error", "message": "签名不能超过 30 个汉字"}), 400
+    
     try:
+        # 获取数据库中的账号对象
         acc = Account.query.get(uid)
-        # 更新新增字段
-        if 'signature' in data: acc.signature = data['signature']
-        if 'status' in data: acc.status = data['status']
+        if not acc:
+            return jsonify({"status": "error", "message": "用户不存在"}), 404
+
+        # 2. 更新新增字段（签名与状态）
+        if 'signature' in data: 
+            acc.signature = signature
+        if 'status' in data: 
+            acc.status = data.get('status')
         
-        if data.get('username') and data.get('username') != acc.username:
-            # ... 原有逻辑 (检查占用等) ...
-            acc.username = data['username']
-            user_name_map[uid] = acc.username
-        
-        if data.get('info'):
-            # ... 原有逻辑 (更新 UserInfo 表和 CSV) ...
-            UserInfo.query.get(uid).info = data.get('info')
-            user_info_map[uid] = data.get('info')
-            # 同步 CSV 逻辑保持不变...
+        # 3. 用户名修改逻辑（含唯一性检查）
+        new_username = data.get('username')
+        if new_username and new_username != acc.username:
+            # 检查数据库中是否已存在该用户名
+            existing_user = Account.query.filter_by(username=new_username).first()
+            if existing_user:
+                return jsonify({"status": "error", "message": "该用户名已被占用"}), 400
             
+            acc.username = new_username
+            session['username'] = new_username  # 同步更新 Session 中的缓存
+            user_name_map[uid] = new_username   # 同步更新内存 Map
+
+        # 4. 核心：个人标签资料更新（涉及 CSV 同步）
+        new_info = data.get('info')
+        if new_info:
+            # 更新数据库 UserInfo 表
+            u_info = UserInfo.query.get(uid)
+            if u_info:
+                u_info.info = new_info
+            else:
+                # 容错：如果 UserInfo 记录丢失则新建
+                db.session.add(UserInfo(uid=uid, info=new_info))
+            
+            # 更新内存中的资料 Map，保证 API 立即返回新结果
+            global user_info_map
+            user_info_map[uid] = new_info
+            
+            # 🚀 同步更新 users.csv (关键：保证 T+1 重训能读到新特征)
+            users_csv_path = os.path.join(current_dir, "users.csv")
+            if os.path.exists(users_csv_path):
+                try:
+                    df = pd.read_csv(users_csv_path)
+                    # 定位 uid 并更新 info 这一列
+                    df.loc[df['uid'] == uid, 'info'] = new_info
+                    # 保存，使用 utf-8-sig 确保 Windows 下 Excel 打开不乱码
+                    df.to_csv(users_csv_path, index=False, encoding='utf-8-sig')
+                except Exception as csv_e:
+                    print(f"[Warning] CSV 同步失败: {csv_e}")
+
+        # 提交所有更改到数据库
         db.session.commit()
-        return jsonify({"status": "success", "message": "资料更新成功！"})
+        
+        return jsonify({
+            "status": "success", 
+            "message": "资料修改成功！下次模型重训后，GNN 将根据你的新标签重新计算推荐。"
+        })
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
-    
+       
 # ==========================================
 # 🚀 核心修复：这个就是之前消失的星图实时头像接口！
 # ==========================================
