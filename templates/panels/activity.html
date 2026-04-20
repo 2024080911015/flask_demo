@@ -1,82 +1,115 @@
 <!-- START OF FILE panels/activity.html -->
-<div id="panel-activity" class="panel-content hidden p-4 md:p-6 max-w-[1600px] mx-auto space-y-6">
-    <!-- 顶部 Tab 导航 -->
-    <div class="flex items-center justify-between mb-2">
-        <div class="flex bg-stone-100 p-1 rounded-2xl gap-1">
-            <button onclick="switchActivityTab('hall')" id="tab-act-hall" class="px-6 py-2.5 rounded-xl text-sm font-bold transition act-tab-active bg-white shadow-sm text-amber-700">🚀 组队大厅</button>
-            <button onclick="switchActivityTab('create')" id="tab-act-create" class="px-6 py-2.5 rounded-xl text-sm font-bold transition text-stone-500 hover:bg-stone-200">➕ 发起项目</button>
-            <button onclick="switchActivityTab('manage')" id="tab-act-manage" class="px-6 py-2.5 rounded-xl text-sm font-bold transition text-stone-500 hover:bg-stone-200 relative">
-                📂 我的管理
-                <span id="manage-badge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">0</span>
-            </button>
+<style>
+    .gnn-glow { box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .status-badge { backdrop-filter: blur(4px); }
+    /* 🚀 核心修复：确保 Activity 详情层级低于 UserModal */
+    #activityDetailModal { z-index: 120; }
+    #userProfileModal { z-index: 200 !important; }
+</style>
+
+<div id="panel-activity" class="panel-content hidden p-6 max-w-[1400px] mx-auto space-y-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+            <h2 class="text-3xl font-serif font-bold text-stone-800">组队大厅 <span class="text-amber-500 italic">Hub</span></h2>
+            <p class="text-stone-400 text-sm mt-1">GNN 驱动的跨学科组队推荐系统</p>
+        </div>
+        <div class="flex bg-stone-200/50 p-1.5 rounded-2xl gap-1 backdrop-blur-md">
+            <button onclick="switchActivityTab('hall')" id="tab-act-hall" class="px-6 py-2.5 rounded-xl text-sm font-bold transition act-tab-active bg-white shadow-sm text-amber-700">发现项目</button>
+            <button onclick="switchActivityTab('create')" id="tab-act-create" class="px-6 py-2.5 rounded-xl text-sm font-bold transition text-stone-500 hover:text-stone-800">发起招募</button>
+            <button onclick="switchActivityTab('manage')" id="tab-act-manage" class="px-6 py-2.5 rounded-xl text-sm font-bold transition text-stone-500 hover:text-stone-800">我的管理</button>
         </div>
     </div>
 
-    <!-- 子页面 1：组队大厅列表 -->
-    <div id="act-sub-hall" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <!-- 加载占位符 -->
-        <div class="col-span-full py-20 text-center text-stone-300">正在通过 GNN 检索最适合你的项目...</div>
+    <!-- 子页面 1：大厅 -->
+    <div id="act-sub-hall" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <!-- 卡片将由 JS 动态生成 -->
     </div>
 
-    <!-- 子页面 2：发起项目表单 -->
-    <div id="act-sub-create" class="hidden max-w-2xl mx-auto">
-        <div class="card-warm p-8 rounded-[2rem] shadow-sm border border-stone-100">
-            <h3 class="text-xl font-serif font-bold text-stone-800 mb-6">发布招募需求</h3>
-            <form id="form-create-activity" class="space-y-5" onsubmit="handleCreateActivity(event)">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-stone-400 mb-2 uppercase">项目标题</label>
-                        <input type="text" name="title" required class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none focus:border-amber-400">
+    <!-- 子页面 2：发起项目 (增加高级过滤) -->
+    <div id="act-sub-create" class="hidden animate-fade-in">
+        <div class="card-warm p-10 rounded-[2.5rem] shadow-xl border border-stone-100 max-w-4xl mx-auto">
+            <div class="flex items-center gap-4 mb-8">
+                <div class="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg shadow-amber-200">🚀</div>
+                <h3 class="text-2xl font-serif font-bold text-stone-800">创建新项目</h3>
+            </div>
+            
+            <form id="form-create-activity" class="space-y-8" onsubmit="handleCreateActivity(event)">
+                <!-- 基础信息组 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">项目愿景 Title</label>
+                        <input type="text" name="title" required placeholder="如：基于机器学习的校园碳中和方案" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:border-amber-400 focus:bg-white transition-all outline-none">
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-stone-400 mb-2 uppercase">活动性质</label>
-                        <select name="nature" class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">活动类目 Category</label>
+                        <select name="nature" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm outline-none">
                             <option value="学术竞赛">🏆 学术竞赛</option>
-                            <option value="大创项目">💡 大创项目</option>
+                            <option value="保研/申请">🎓 保研/申请组队</option>
+                            <option value="创业孵化">💡 创业孵化</option>
                             <option value="文体娱乐">🎸 文体娱乐</option>
-                            <option value="社会实践">🌱 社会实践</option>
                         </select>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-stone-400 mb-2 uppercase">详细描述（需求、技能要求等）</label>
-                    <textarea name="description" rows="4" required class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none focus:border-amber-400 resize-none"></textarea>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-stone-400 mb-2 uppercase">目标人数</label>
-                        <input type="number" name="total_capacity" value="5" class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none">
+
+                <!-- 🚀 高级过滤：年级与专业 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-3">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">目标人群年级 (不选为全部)</label>
+                        <div id="target-grades" class="flex flex-wrap gap-2">
+                            <!-- 由 JS 生成 OPT_GRADES 复选框 -->
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-stone-400 mb-2 uppercase">截止日期</label>
-                        <input type="date" name="deadline" required class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none">
-                    </div>
-                </div>
-                
-                <!-- 好友邀请器 (Step 4 细化) -->
-                <div>
-                    <label class="block text-xs font-bold text-stone-400 mb-2 uppercase">邀请初始核心成员（已关注的好友）</label>
-                    <div id="invite-friend-selector" class="p-4 bg-stone-50 rounded-xl border border-stone-200 max-h-40 overflow-y-auto space-y-2">
-                        <!-- JS 填充好友列表 -->
+                    <div class="space-y-3">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">倾向专业 (不选为全部)</label>
+                        <div id="target-majors" class="flex flex-wrap gap-2">
+                            <!-- 由 JS 生成 OPT_MAJORS 复选框 -->
+                        </div>
                     </div>
                 </div>
 
-                <button type="submit" class="w-full py-4 bg-stone-900 text-white rounded-2xl font-bold shadow-xl hover:bg-amber-600 transition duration-300">
-                    立即发布招募
-                </button>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">详情描述 Description</label>
+                    <textarea name="description" rows="4" required placeholder="请详细描述你的项目目标、所需技术栈以及对队友的期待..." class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:border-amber-400 focus:bg-white transition-all outline-none resize-none"></textarea>
+                </div>
+
+                <!-- 底部配置 -->
+                <div class="flex flex-wrap md:flex-nowrap gap-8 items-end">
+                    <div class="w-full md:w-32 space-y-2">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">招募人数</label>
+                        <input type="number" name="total_capacity" value="3" min="1" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm">
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">截止日期</label>
+                        <input type="date" name="deadline" required class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm">
+                    </div>
+                    <button type="submit" class="w-full md:w-auto px-10 py-4 bg-stone-900 text-white rounded-2xl font-bold shadow-2xl hover:bg-amber-600 transition-all transform hover:-translate-y-1">
+                        立即启动项目
+                    </button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- 子页面 3：我的管理 -->
-    <div id="act-sub-manage" class="hidden space-y-8">
-        <section>
-            <h4 class="text-sm font-bold text-stone-400 uppercase mb-4 tracking-widest">我发起的项目</h4>
-            <div id="manage-my-launched" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
-        </section>
-        <section>
-            <h4 class="text-sm font-bold text-stone-400 uppercase mb-4 tracking-widest">我参与的项目</h4>
-            <div id="manage-my-joined" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
-        </section>
+    <!-- 子页面 3：我的管理 (模态框联动版) -->
+    <div id="act-sub-manage" class="hidden space-y-12 animate-fade-in">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <!-- 我发起的 -->
+            <div class="space-y-6">
+                <div class="flex items-center justify-between border-b border-stone-200 pb-4">
+                    <h4 class="text-xl font-serif font-bold text-stone-800">我发起的项目</h4>
+                    <span class="text-[10px] font-black text-stone-400 uppercase">My Creations</span>
+                </div>
+                <div id="manage-my-launched" class="space-y-4"></div>
+            </div>
+            <!-- 我参与的 -->
+            <div class="space-y-6">
+                <div class="flex items-center justify-between border-b border-stone-200 pb-4">
+                    <h4 class="text-xl font-serif font-bold text-stone-800">我加入的/申请中</h4>
+                    <span class="text-[10px] font-black text-stone-400 uppercase">Participating</span>
+                </div>
+                <div id="manage-my-joined" class="space-y-4"></div>
+            </div>
+        </div>
     </div>
 </div>

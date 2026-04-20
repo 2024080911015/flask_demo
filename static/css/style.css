@@ -47,3 +47,31 @@ body { font-family: 'Inter', sans-serif; margin: 0; background: #0a0a14; }
 .custom-scroll::-webkit-scrollbar { width: 4px; }
 .custom-scroll::-webkit-scrollbar-track { background: #f3f0eb; border-radius: 4px; }
 .custom-scroll::-webkit-scrollbar-thumb { background: #d6cfc4; border-radius: 4px; }
+
+/* 🚀 组长，请将这段代码粘贴在 style.css 的最底部，覆盖之前的层级定义 */
+
+/* 活动详情模态框：设为 5000 */
+#activityDetailModal {
+    z-index: 5000 !important;
+}
+
+/* 个人名片模态框：设为 9000 (绝对全场最高) */
+#userProfileModal {
+    z-index: 9000 !important;
+}
+
+/* 遮罩优化：当个人名片（9000）在活动详情（5000）上方时，名片的遮罩背景不要太重 */
+#userProfileModal:not(.hidden) {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(8px) !important; /* 增加模糊感，突出顶层名片 */
+}
+
+/* 注册选项等备选模态框 */
+#registrationOptionsModal {
+    z-index: 9500 !important;
+}
+
+/* AI 助手始终在最右下角最上方 */
+#ai-agent-widget, #ai-fab-btn {
+    z-index: 9999 !important;
+}
