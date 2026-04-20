@@ -9,10 +9,11 @@ function getPageContext() {
     // 1. 判断当前激活的面板
     const panels = [
         { id: 'panel-recommend', name: '推荐交友' },
+        { id: 'panel-graph', name: '我的社交星系' },
         { id: 'panel-relations', name: '关系管理' },
         { id: 'panel-search', name: '找朋友' },
         { id: 'panel-profile', name: '个人空间' },
-        { id: 'panel-stats', name: '全校生态大盘' }
+        { id: 'panel-stats', name: '全校生态大盘' },
     ];
     for (const p of panels) {
         const el = document.getElementById(p.id);

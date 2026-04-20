@@ -42,6 +42,9 @@
                 <button onclick="switchMenu('recommend')" id="menu-recommend" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-stone-600 hover:bg-amber-50 hover:text-amber-700 menu-active bg-amber-50 text-amber-700">
                     <span>✨</span> 推荐交友
                 </button>
+                <button onclick="switchMenu('graph')" id="menu-graph" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-stone-600 hover:bg-stone-100">
+                    <span>🌌</span> 我的社交星系
+                </button>
                 <button onclick="switchMenu('relations')" id="menu-relations" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-stone-600 hover:bg-stone-100">
                     <span>🤝</span> 关系管理
                 </button>
@@ -89,6 +92,7 @@
             {% include "panels/search.html" %}
             {% include "panels/stats.html" %}
             {% include "panels/inbox.html" %}
+            {% include "panels/graph.html" %}
 
             <!-- ================= OpenClaw AI 社交助手浮窗 ================= -->
             <!-- 聊天窗口 -->

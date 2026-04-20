@@ -10,6 +10,8 @@ class Account(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     avatar = db.Column(db.String(255), nullable=True)
+    signature = db.Column(db.String(255), nullable=True, default="这个人很懒，什么都没留下")
+    status = db.Column(db.String(50), nullable=True, default="找朋友")
 
 # 2. 定义用户信息模型
 class UserInfo(db.Model):

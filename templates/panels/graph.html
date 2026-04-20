@@ -1,0 +1,23 @@
+<!-- START OF FILE panels/graph.html -->
+<div id="panel-graph" class="panel-content hidden h-full w-full relative">
+    <!-- 顶部状态条 -->
+    <div class="absolute top-4 left-6 z-10 flex items-center gap-4">
+        <div class="bg-white/80 backdrop-blur-md border border-stone-200 px-4 py-2 rounded-2xl shadow-sm">
+            <h2 class="text-sm font-bold text-stone-800 flex items-center gap-2">
+                <span class="animate-pulse">✨</span> 实时星系拓扑
+            </h2>
+        </div>
+        
+        <button onclick="refreshGraph()" class="bg-white/80 backdrop-blur-md border border-stone-200 p-2 rounded-xl shadow-sm hover:bg-amber-50 transition" title="重新渲染">
+            <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </button>
+    </div>
+
+    <!-- 图谱容器 -->
+    <iframe id="mainGraphIframe" src="" class="w-full h-full border-none shadow-inner bg-[#02020a]"></iframe>
+    
+    <!-- 右下角图例提示 -->
+    <div class="absolute bottom-6 left-6 z-10 pointer-events-none">
+        <p class="text-[10px] text-white/30 uppercase tracking-widest font-mono">GNN Embedding Visualization v2.0</p>
+    </div>
+</div>

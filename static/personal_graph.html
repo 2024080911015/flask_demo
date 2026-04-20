@@ -249,8 +249,16 @@
             .linkDirectionalParticleWidth(1.5)
             .linkDirectionalParticleColor(() => '#00ffcc') 
             
-            .nodeLabel(node => {
+           .nodeLabel(node => {
               const nid = String(node.id);
+              // 🚀 1. 状态标签渲染
+    const statusHtml = node.status ? 
+        `<span style="margin-left:8px; padding:2px 6px; background:rgba(251,191,36,0.3); color:#fbbf24; border:1px solid rgba(251,191,36,0.5); border-radius:4px; font-size:10px; font-weight:bold;">${node.status}</span>` : "";
+
+    // 🚀 2. 个人签名渲染 (带分割线和引号)
+    const signatureHtml = node.signature ? 
+        `<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1); color:#94a3b8; font-style:italic; font-size:11px; line-height:1.4;">“${node.signature}”</div>` : "";
+
               let relationTag = "";
               if (nid === centerUid) relationTag = "<span class='badge' style='color:#fbbf24; border:1px solid #fbbf24;'>👉 你自己</span>";
               else if (recIdsStr.includes(nid)) relationTag = "<span class='badge' style='color:#00ffcc; border:1px solid #00ffcc;'>✨ AI推荐</span>";
@@ -260,7 +268,16 @@
                   else if (isFollowing) relationTag = "<span class='badge' style='color:#3b82f6; border:1px solid #3b82f6;'>👀 你的关注</span>";
                   else if (isFollower) relationTag = "<span class='badge' style='color:#9ca3af; border:1px solid #9ca3af;'>🌟 你的粉丝</span>";
               }
-              return `<div class="node-tooltip"><div class="name">👤 ${node.username||'User'} 【${node.community||'未知'}】 ${relationTag}</div><div class="info">${(node.info||'').replace(/,/g, '<br/>')}</div></div>`;
+              return `
+                  <div class="node-tooltip">
+                    <div class="name">
+                      👤 ${node.username||'User'} 【${node.community||'未知'}】 ${statusHtml} ${relationTag}
+                      </div>
+                    <div class="info">
+                      ${(node.info||'').replace(/,/g, '<br/>')}
+                      </div>
+                    ${signatureHtml}
+                  </div>`;
             })
             .graphData({ nodes: filteredNodes, links: filteredLinks });
 
