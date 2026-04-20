@@ -53,3 +53,28 @@ class ChatHistory(db.Model):
     role = db.Column(db.String(20), nullable=False) # 'user' 或 'assistant'
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)
+
+# 6. 活动/组队大厅模型
+class Activity(db.Model):
+    __tablename__ = 'activities'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    publisher_uid = db.Column(db.Integer, nullable=False, index=True)
+    title = db.Column(db.String(100), nullable=False)
+    nature = db.Column(db.String(50), nullable=False) # 活动性质：学术、竞赛、娱乐
+    description = db.Column(db.Text, nullable=False)
+    target_crowd = db.Column(db.String(255), nullable=True) # 逗号分隔的年级
+    target_major = db.Column(db.String(255), nullable=True) # 逗号分隔的专业
+    total_capacity = db.Column(db.Integer, default=5)
+    deadline = db.Column(db.String(50), nullable=False)
+    status = db.Column(db.Integer, default=1) # 1-招募中, 0-已结束
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+# 7. 活动参与者关系表 (含申请流)
+class ActivityParticipant(db.Model):
+    __tablename__ = 'activity_participants'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    activity_id = db.Column(db.Integer, nullable=False, index=True)
+    uid = db.Column(db.Integer, nullable=False, index=True)
+    is_initiator = db.Column(db.Boolean, default=False) # 是否为初始核心成员
+    status = db.Column(db.Integer, default=0) # 0-申请中, 1-已通过, 2-已拒绝
+    apply_msg = db.Column(db.String(255), nullable=True) # 申请理由
