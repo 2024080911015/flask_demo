@@ -44,6 +44,11 @@ window.switchMenu = function(menuName) {
     if (menuName === 'inbox' && window.InboxView) {
         window.InboxView.load();
     }
+    if (menuName === 'activity') {
+        if (typeof switchActivityTab === 'function') {
+            switchActivityTab('hall');
+        }
+    }
 };
 
 // 增加一个刷新图谱的全局函数

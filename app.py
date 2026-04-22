@@ -14,6 +14,8 @@ from t_plus_1_scheduler import run_pipeline
 from models import db, Account, UserInfo, FriendGroup, FriendMapping, ChatHistory, Message
 from agent_api import agent_bp
 
+from activity_api import activity_bp
+
 app = Flask(__name__)
 app.json.ensure_ascii = False
 app.json.sort_keys = False
@@ -25,6 +27,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 app.register_blueprint(agent_bp)
+app.register_blueprint(activity_bp)
 
 # ==========================================
 # 初始化全局变量与内存数据

@@ -45,6 +45,9 @@
                 <button onclick="switchMenu('graph')" id="menu-graph" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-stone-600 hover:bg-stone-100">
                     <span>🌌</span> 我的社交星系
                 </button>
+                <button onclick="switchMenu('activity')" id="menu-activity" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-stone-600 hover:bg-stone-100">
+                    <span class="text-lg">🚩</span> <span class="sidebar-text whitespace-nowrap">组队大厅</span>
+                </button>
                 <button onclick="switchMenu('relations')" id="menu-relations" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition text-stone-600 hover:bg-stone-100">
                     <span>🤝</span> 关系管理
                 </button>
@@ -93,6 +96,7 @@
             {% include "panels/stats.html" %}
             {% include "panels/inbox.html" %}
             {% include "panels/graph.html" %}
+            {% include "panels/activity.html" %}
 
             <!-- ================= OpenClaw AI 社交助手浮窗 ================= -->
             <!-- 聊天窗口 -->
