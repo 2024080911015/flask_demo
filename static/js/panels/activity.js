@@ -241,43 +241,59 @@ window.openActivityDetail = async function(id) {
     }
 };
 
-// 渲染成员列表 (专业卡片样式)
+// 渲染“当前阵容”中的成员（已入队）
 function renderMembers(members) {
     const grid = document.getElementById('det-members-grid');
     grid.innerHTML = '';
     if (!members) return;
     
-    members.filter(m => m.status === 1).forEach(m => {
-        // 🚀 使用 window.openUserModal 确保全局调用
+    const joined = members.filter(m => m.status === 1);
+    if (joined.length === 0) {
+        grid.innerHTML = '<p class="text-xs text-stone-300 py-2">暂无成员入队</p>';
+        return;
+    }
+
+    joined.forEach(m => {
+        const avatarId = `det-member-avatar-${m.uid}`; // 生成唯一 ID
         grid.innerHTML += `
         <div class="flex items-center gap-3 p-3 bg-white border ${m.is_initiator ? 'border-amber-200 bg-amber-50/20' : 'border-stone-100'} rounded-2xl hover:border-amber-400 transition cursor-pointer" 
              onclick="window.openUserModal(${m.uid})">
-            <div class="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-500 border-2 border-white shadow-sm">${m.username.charAt(0)}</div>
+            <!-- 🚀 这里的 div 会被 loadAvatar 填充背景图 -->
+            <div id="${avatarId}" class="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-500 border-2 border-white shadow-sm shrink-0 overflow-hidden bg-cover bg-center">
+                ${m.username.charAt(0)}
+            </div>
             <div class="overflow-hidden">
                 <p class="text-xs font-bold text-stone-800 truncate">${m.username} ${m.is_initiator ? '👑' : ''}</p>
                 <p class="text-[9px] text-stone-400 uppercase tracking-tighter">${m.is_initiator ? '项目发起人' : '团队成员'}</p>
             </div>
         </div>`;
+        
+        // 🚀 核心动作：异步加载真实头像
+        setTimeout(() => State.loadAvatar(m.uid, avatarId), 10);
     });
 }
 
-// 渲染待审核列表 (带审批按钮)
+// 渲染“管理面板”中的申请人（待审核）
 function renderAuditList(members) {
     const list = document.getElementById('det-audit-list');
     list.innerHTML = '';
-    const pending = members.filter(m => m.status === 0);
+    if (!members) return;
     
+    const pending = members.filter(m => m.status === 0);
     if (pending.length === 0) {
         list.innerHTML = '<p class="text-xs text-stone-400 text-center py-4">暂无待处理的申请</p>';
         return;
     }
 
     pending.forEach(m => {
+        const avatarId = `audit-member-avatar-${m.uid}`; // 生成唯一 ID
         list.innerHTML += `
         <div class="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm space-y-3">
             <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3" onclick="openUserModal(${m.uid})">
-                    <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 text-xs">${m.username.charAt(0)}</div>
+                <div class="flex items-center gap-3 cursor-pointer" onclick="window.openUserModal(${m.uid})">
+                    <div id="${avatarId}" class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 text-xs shrink-0 overflow-hidden bg-cover bg-center">
+                        ${m.username.charAt(0)}
+                    </div>
                     <span class="text-sm font-bold text-stone-800">${m.username}</span>
                 </div>
                 <div class="flex gap-2">
@@ -287,6 +303,9 @@ function renderAuditList(members) {
             </div>
             ${m.apply_msg ? `<div class="text-xs text-stone-500 bg-stone-50 p-3 rounded-xl border border-stone-100 italic">“${m.apply_msg}”</div>` : ''}
         </div>`;
+        
+        // 🚀 核心动作：异步加载真实头像
+        setTimeout(() => State.loadAvatar(m.uid, avatarId), 10);
     });
 }
 

@@ -15,41 +15,56 @@ def get_user_embedding(uid):
     return None
 
 def serialize_activity(act, my_uid):
+    """【核心封装】已补全头像字段，确保阵容显示真实头像"""
     from app import user_name_map, follow_dict
-    
+    from models import Account, ActivityParticipant  # 🚀 显式引入 Account
+    import torch
+    import torch.nn.functional as F
+
+    # 1. 获取所有参与者及其头像
     participants = ActivityParticipant.query.filter_by(activity_id=act.id).all()
     members = []
-    my_status = -1
+    my_status = -1 
+    
     for p in participants:
+        # 🚀 核心修改：查询 Account 获取头像
+        acc = Account.query.get(p.uid)
         members.append({
             "uid": p.uid,
-            "username": user_name_map.get(p.uid, f"用户{p.uid}"),
+            "username": acc.username if acc else f"用户{p.uid}",
+            "avatar": acc.avatar if acc else None, # 🚀 传出头像文件名
             "status": p.status,
             "is_initiator": p.is_initiator,
             "apply_msg": p.apply_msg
         })
-        if p.uid == my_uid: my_status = p.status
+        if p.uid == my_uid:
+            my_status = p.status
 
-    # 🚀 补全 match_score
+    # 2. GNN 契合度计算 (维持不变)
     match_score = 0
-    my_emb = get_user_embedding(my_uid)
-    if my_emb is not None:
-        team_uids = [m['uid'] for m in members if m['is_initiator']]
-        team_embs = [get_user_embedding(tuid) for tuid in team_uids if get_user_embedding(tuid) is not None]
-        if team_embs:
-            team_mean_emb = torch.stack(team_embs).mean(dim=0)
-            sim = F.cosine_similarity(my_emb.unsqueeze(0), team_mean_emb.unsqueeze(0))
-            match_score = int(sim.item() * 100)
+    try:
+        from activity_api import get_user_embedding
+        my_emb = get_user_embedding(my_uid)
+        if my_emb is not None:
+            team_uids = [m['uid'] for m in members if m['is_initiator']]
+            team_embs = [get_user_embedding(tuid) for tuid in team_uids if get_user_embedding(tuid) is not None]
+            if team_embs:
+                team_mean_emb = torch.stack(team_embs).mean(dim=0)
+                sim = F.cosine_similarity(my_emb.unsqueeze(0), team_mean_emb.unsqueeze(0))
+                match_score = int(sim.item() * 100)
+    except: pass
 
-    # 🚀 补全 path_text
-    path_text = "由你发起" if act.publisher_uid == my_uid else "寻找路径中..."
+    # 3. 人脉路径 (维持不变)
+    path_text = "寻找路径中..."
     my_following = follow_dict.get(my_uid, [])
-    if act.publisher_uid != my_uid:
-        if act.publisher_uid in my_following: path_text = "直接人脉"
-        else:
-            for fid in my_following:
-                if act.publisher_uid in follow_dict.get(fid, []):
-                    path_text = f"经 {user_name_map.get(fid, '同学')} 引荐"; break
+    if act.publisher_uid == my_uid:
+        path_text = "由你发起"
+    elif act.publisher_uid in my_following:
+        path_text = "直接人脉"
+    else:
+        for fid in my_following:
+            if act.publisher_uid in follow_dict.get(fid, []):
+                path_text = f"经 {user_name_map.get(fid, '同学')} 引荐"; break
 
     return {
         "id": act.id,
@@ -58,12 +73,12 @@ def serialize_activity(act, my_uid):
         "description": act.description,
         "publisher_id": act.publisher_uid,
         "publisher_name": user_name_map.get(act.publisher_uid, f"用户{act.publisher_uid}"),
-        "total_capacity": act.total_capacity, # 🚀 必须对齐
+        "total_capacity": act.total_capacity,
         "deadline": act.deadline,
         "member_count": sum(1 for m in members if m['status'] == 1),
         "members": members,
         "my_status": my_status,
-        "match_score": match_score, # 🚀 必须对齐
+        "match_score": match_score,
         "path_text": path_text
     }
 
@@ -158,27 +173,3 @@ def quit_activity():
     db.session.delete(rel)
     db.session.commit()
     return jsonify({"status": "success", "message": "已退出"})
-    """参与者退出项目或取消申请"""
-    if 'uid' not in session: 
-        return jsonify({"status": "error", "message": "未登录"}), 401
-    
-    uid = session['uid']
-    data = request.json
-    act_id = data.get('activity_id')
-
-    try:
-        # 查找对应关系
-        rel = ActivityParticipant.query.filter_by(activity_id=act_id, uid=uid).first()
-        if not rel:
-            return jsonify({"status": "error", "message": "未找到你的参与记录"}), 404
-        
-        # 如果是发起人尝试退出，提示去删除项目
-        if rel.is_initiator:
-            return jsonify({"status": "error", "message": "发起人不能退出，请选择撤回项目"}), 400
-
-        db.session.delete(rel)
-        db.session.commit()
-        return jsonify({"status": "success", "message": "已成功退出/取消申请"})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
