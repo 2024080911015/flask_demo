@@ -102,3 +102,31 @@ window.openUserModal = async function(explicitId) {
 };
 
 window.closeUserModal = () => ModalManager.close('userProfileModal');
+
+window.NiceConfirm = function(options = {}) {
+    const modal = document.getElementById('niceConfirmModal');
+    const titleEl = document.getElementById('confirm-title');
+    const msgEl = document.getElementById('confirm-msg');
+    const iconEl = document.getElementById('confirm-icon');
+    const okBtn = document.getElementById('confirm-ok-btn');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+    return new Promise((resolve) => {
+        titleEl.innerText = options.title || "确认操作";
+        msgEl.innerText = options.message || "确定执行吗？";
+        iconEl.innerText = options.icon || "⚠️";
+        okBtn.innerText = options.okText || "确定";
+        
+        modal.classList.remove('hidden');
+        
+        const close = (res) => {
+            modal.classList.add('hidden');
+            resolve(res);
+        };
+
+        okBtn.onclick = () => close(true);
+        cancelBtn.onclick = () => close(false);
+        // 点击遮罩关闭
+        modal.onclick = (e) => { if(e.target === modal) close(false); };
+    });
+};

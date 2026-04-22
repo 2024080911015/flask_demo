@@ -1,10 +1,9 @@
 // ==========================================
-//  组队大厅核心逻辑 (全量同步版)
+//  组队大厅核心逻辑 (UI 体验进化版)
 // ==========================================
 
 let currentActId = null;
 
-// 1. Tab 切换
 window.switchActivityTab = function(tab) {
     const tabs = ['hall', 'create', 'manage'];
     tabs.forEach(t => {
@@ -12,12 +11,9 @@ window.switchActivityTab = function(tab) {
         document.getElementById(`tab-act-${t}`).classList.remove('act-tab-active', 'bg-white', 'shadow-sm', 'text-amber-700');
         document.getElementById(`tab-act-${t}`).classList.add('text-stone-500');
     });
-
     document.getElementById(`act-sub-${tab}`).classList.remove('hidden');
     const activeBtn = document.getElementById(`tab-act-${tab}`);
     activeBtn.classList.add('act-tab-active', 'bg-white', 'shadow-sm', 'text-amber-700');
-    activeBtn.classList.remove('text-stone-500');
-
     if (tab === 'hall') loadActivityHall();
     if (tab === 'create') {
         renderFilterOptions('target-grades', OPT_GRADES, 'target_grade');
@@ -37,26 +33,21 @@ function renderFilterOptions(containerId, list, name) {
     `).join('');
 }
 
-// 2. 加载大厅列表
+// 1. 加载大厅
 window.loadActivityHall = async function() {
     const container = document.getElementById('act-sub-hall');
     if (!container) return;
-    container.innerHTML = `<div class="col-span-full py-20 text-center text-stone-300">正在进行 GNN 认知演算...</div>`;
-    
+    container.innerHTML = `<div class="col-span-full py-20 text-center text-stone-300 italic">正在进行 GNN 认知演算...</div>`;
     try {
         const res = await fetch('/api/activity/list');
         const data = await res.json();
         container.innerHTML = '';
-        
-        if (data.data.length === 0) {
+        if (!data.data.length) {
             container.innerHTML = '<div class="col-span-full py-20 text-center text-stone-300 italic">目前暂无正在招募的项目</div>';
             return;
         }
-
         data.data.forEach(act => {
-            const statusLabel = act.my_status === 1 ? '✅ 已入队' : (act.my_status === 0 ? '⏳ 审核中' : '');
             const scoreColor = act.match_score > 80 ? 'text-emerald-500' : (act.match_score > 60 ? 'text-amber-500' : 'text-stone-400');
-            
             container.innerHTML += `
             <div class="card-warm rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl transition-all duration-500 border border-stone-100 flex flex-col group relative overflow-hidden cursor-pointer" onclick="openActivityDetail(${act.id})">
                 <div class="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center">
@@ -71,7 +62,7 @@ window.loadActivityHall = async function() {
                 <div class="mt-auto space-y-4">
                     <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-stone-400">
                         <span>${act.path_text}</span>
-                        <span class="${act.my_status === 1 ? 'text-emerald-500' : 'text-amber-500'}">${statusLabel}</span>
+                        <span class="${act.my_status === 1 ? 'text-emerald-500' : 'text-amber-500'}">${act.my_status===1?'✅ 已入队':(act.my_status===0?'⏳ 审核中':'')}</span>
                     </div>
                     <div class="flex items-center justify-between">
                         <div class="flex -space-x-2">
@@ -86,29 +77,20 @@ window.loadActivityHall = async function() {
     } catch(e) { container.innerHTML = '加载失败'; }
 };
 
-// 3. 打开详情 (支持编辑、审批、理由回显)
+// 2. 项目详情 & 管理逻辑
 window.openActivityDetail = async function(id) {
     currentActId = id;
-    
-    // 🚀 使用新的管理器打开，解决层级和 undefined 报错
-    if (typeof ModalManager !== 'undefined') {
-        ModalManager.open('activityDetailModal');
-    } else {
-        document.getElementById('activityDetailModal').classList.remove('hidden');
-    }
-
-    toggleActivityEdit(false); // 强制重置为展示态
+    ModalManager.open('activityDetailModal');
+    toggleActivityEdit(false);
 
     try {
         const res = await fetch('/api/activity/my');
         const data = await res.json();
         const allActs = [...data.launched, ...data.joined];
         let act = allActs.find(a => a.id === id);
-
         if (!act) {
             const listRes = await fetch('/api/activity/list');
-            const listData = await listRes.json();
-            act = listData.data.find(a => a.id === id);
+            act = (await listRes.json()).data.find(a => a.id === id);
         }
 
         if (act) {
@@ -120,7 +102,7 @@ window.openActivityDetail = async function(id) {
             document.getElementById('det-publisher').innerText = act.publisher_name;
             document.getElementById('det-publisher').onclick = () => window.openUserModal(act.publisher_id);
 
-            // 预填充编辑表单
+            // 填充编辑表单
             document.getElementById('edit-title').value = act.title;
             document.getElementById('edit-nature').value = act.nature;
             document.getElementById('edit-desc').value = act.description;
@@ -128,11 +110,14 @@ window.openActivityDetail = async function(id) {
             document.getElementById('edit-deadline').value = act.deadline;
 
             const isOwner = (act.publisher_id == State.user.uid);
-            document.getElementById('btn-toggle-edit').classList.toggle('hidden', !isOwner);
             
+            // 🚀 控制按钮可见性
+            document.getElementById('owner-actions').classList.toggle('hidden', !isOwner);
+            const btn = document.getElementById('det-action-btn');
+            btn.classList.toggle('hidden', isOwner);
+
             const auditSection = document.getElementById('admin-audit-section');
             const applySection = document.getElementById('apply-section');
-            const btn = document.getElementById('det-action-btn');
             const msgDisplay = document.getElementById('my-apply-msg-display');
             const msgInput = document.getElementById('apply-msg');
 
@@ -144,13 +129,11 @@ window.openActivityDetail = async function(id) {
             if (isOwner) {
                 auditSection.classList.remove('hidden');
                 renderAuditList(act.members);
-                btn.innerText = "❌ 撤回并删除项目";
-                btn.className = "flex-1 py-4 bg-red-50 text-red-500 rounded-2xl font-bold hover:bg-red-100";
-                btn.onclick = () => handleCancelActivity(act.id);
+                document.getElementById('btn-delete-act').onclick = () => handleCancelActivity(act.id);
             } else {
                 applySection.classList.remove('hidden');
                 if (act.my_status === 1 || act.my_status === 0) {
-                    msgDisplay.innerText = act.my_apply_msg ? `你的申请理由：“${act.my_apply_msg}”` : "你未填写申请理由";
+                    msgDisplay.innerText = act.my_apply_msg ? `你的申请理由：“${act.my_apply_msg}”` : "未填写申请理由";
                     msgDisplay.classList.remove('hidden');
                     btn.innerText = act.my_status === 1 ? "🚶 退出该团队" : "⏳ 审核中 (点击取消)";
                     btn.className = "flex-1 py-4 bg-stone-100 text-stone-500 rounded-2xl font-bold hover:bg-red-50 hover:text-red-500";
@@ -169,17 +152,15 @@ window.openActivityDetail = async function(id) {
 
 window.closeActivityDetail = () => ModalManager.close('activityDetailModal');
 
-// 4. 成员与审批列表渲染 (含头像加载)
 function renderMembers(members) {
     const grid = document.getElementById('det-members-grid');
     grid.innerHTML = '';
-    const joined = members.filter(m => m.status === 1);
-    joined.forEach(m => {
+    members.filter(m => m.status === 1).forEach(m => {
         const avatarId = `det-mem-avatar-${m.uid}`;
         grid.innerHTML += `
         <div class="flex items-center gap-3 p-3 bg-white border ${m.is_initiator ? 'border-amber-200 bg-amber-50/20' : 'border-stone-100'} rounded-2xl hover:border-amber-400 transition cursor-pointer" onclick="window.openUserModal(${m.uid})">
             <div id="${avatarId}" class="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-stone-500 border-2 border-white shadow-sm shrink-0 bg-cover bg-center">${m.username.charAt(0)}</div>
-            <div class="overflow-hidden"><p class="text-xs font-bold text-stone-800 truncate">${m.username} ${m.is_initiator ? '👑' : ''}</p><p class="text-[9px] text-stone-400 uppercase">${m.is_initiator ? '项目发起人' : '团队成员'}</p></div>
+            <div class="overflow-hidden"><p class="text-xs font-bold text-stone-800 truncate">${m.username} ${m.is_initiator ? '👑' : ''}</p><p class="text-[9px] text-stone-400 uppercase">团队成员</p></div>
         </div>`;
         setTimeout(() => State.loadAvatar(m.uid, avatarId), 20);
     });
@@ -189,7 +170,7 @@ function renderAuditList(members) {
     const list = document.getElementById('det-audit-list');
     list.innerHTML = '';
     const pending = members.filter(m => m.status === 0);
-    if (pending.length === 0) { list.innerHTML = '<p class="text-xs text-stone-400 text-center py-4">暂无待处理的申请</p>'; return; }
+    if (!pending.length) { list.innerHTML = '<p class="text-xs text-stone-400 text-center py-4">暂无待处理的申请</p>'; return; }
     pending.forEach(m => {
         const avatarId = `audit-mem-avatar-${m.uid}`;
         list.innerHTML += `
@@ -200,7 +181,7 @@ function renderAuditList(members) {
                     <span class="text-sm font-bold text-stone-800">${m.username}</span>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="auditMember(${currentActId}, ${m.uid}, 1)" class="px-4 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-lg shadow-md shadow-emerald-100">通过</button>
+                    <button onclick="auditMember(${currentActId}, ${m.uid}, 1)" class="px-4 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-lg shadow-md hover:bg-emerald-600 transition">通过</button>
                     <button onclick="auditMember(${currentActId}, ${m.uid}, 2)" class="px-4 py-1.5 bg-stone-100 text-stone-500 text-[10px] font-bold rounded-lg hover:bg-red-50">拒绝</button>
                 </div>
             </div>
@@ -210,34 +191,46 @@ function renderAuditList(members) {
     });
 }
 
-// 5. 交互操作 (申请、修改、退出、撤回)
+// 🚀 3. 改写交互函数，引入 NiceConfirm
 window.handleActivityAction = async function() {
     const msg = document.getElementById('apply-msg').value;
-    try {
-        const res = await fetch('/api/activity/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: currentActId, apply_msg: msg }) });
-        const data = await res.json();
-        if(data.status === 'success') { Toast.success(data.message); openActivityDetail(currentActId); loadActivityHall(); }
-    } catch(e) { Toast.error("请求失败"); }
+    const ok = await NiceConfirm({ title: "提交申请", message: "确认要加入该项目团队吗？", icon: "🚀" });
+    if(!ok) return;
+    const res = await fetch('/api/activity/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: currentActId, apply_msg: msg }) });
+    if((await res.json()).status === 'success') { Toast.success("申请已送达"); openActivityDetail(currentActId); loadActivityHall(); }
 };
 
 window.auditMember = async function(actId, uid, status) {
-    try {
-        const res = await fetch('/api/activity/audit', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: actId, target_uid: uid, status: status }) });
-        const data = await res.json();
-        if(data.status === 'success') { Toast.success("操作成功"); openActivityDetail(actId); loadManagement(); }
-    } catch(e) { Toast.error("操作异常"); }
+    const actionName = status === 1 ? "通过" : "拒绝";
+    const ok = await NiceConfirm({ title: `审批申请`, message: `确定要${actionName}该同学的加入申请吗？`, icon: "⚖️" });
+    if(!ok) return;
+    const res = await fetch('/api/activity/audit', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: actId, target_uid: uid, status: status }) });
+    if((await res.json()).status === 'success') { Toast.success(`${actionName}成功`); openActivityDetail(actId); loadManagement(); }
 };
 
+window.handleCancelActivity = async function(id) {
+    const ok = await NiceConfirm({ title: "彻底删除项目", message: "删除后不可恢复，所有成员申请将被清空。确定吗？", icon: "🗑️", okText: "狠心删除" });
+    if(!ok) return;
+    const res = await fetch('/api/activity/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: id }) });
+    if((await res.json()).status === 'success') { Toast.success("项目已撤回"); ModalManager.close('activityDetailModal'); loadActivityHall(); loadManagement(); }
+};
+
+window.handleQuitActivity = async function(id) {
+    const ok = await NiceConfirm({ title: "退出团队", message: "确定要放弃这个机会，退出该项目吗？", icon: "🏃" });
+    if(!ok) return;
+    const res = await fetch('/api/activity/quit', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: id }) });
+    if((await res.json()).status === 'success') { Toast.success("已退出队伍"); ModalManager.close('activityDetailModal'); loadActivityHall(); loadManagement(); }
+};
+
+// 4. 编辑与保存
 window.toggleActivityEdit = function(isEditing) {
-    document.getElementById('det-header-view').classList.toggle('hidden', isEditing);
-    document.getElementById('det-header-edit').classList.toggle('hidden', !isEditing);
-    document.getElementById('det-desc').classList.toggle('hidden', isEditing);
-    document.getElementById('edit-desc').classList.toggle('hidden', !isEditing);
-    document.getElementById('edit-extra').classList.toggle('hidden', !isEditing);
-    document.getElementById('det-members-section').classList.toggle('hidden', isEditing);
-    document.getElementById('admin-audit-section').classList.toggle('hidden', isEditing);
-    document.getElementById('view-actions').classList.toggle('hidden', isEditing);
-    document.getElementById('edit-actions').classList.toggle('hidden', !isEditing);
+    const ids = ['det-header-view', 'det-header-edit', 'det-desc', 'edit-desc', 'edit-extra', 'det-members-section', 'admin-audit-section', 'view-actions', 'edit-actions'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if(!el) return;
+        if(id.includes('view') || id.includes('members') || id === 'det-desc' || id === 'admin-audit-section') el.classList.toggle('hidden', isEditing);
+        else el.classList.toggle('hidden', !isEditing);
+    });
 };
 
 window.saveActivityEdit = async function() {
@@ -250,47 +243,33 @@ window.saveActivityEdit = async function() {
         deadline: document.getElementById('edit-deadline').value
     };
     const res = await fetch('/api/activity/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-    if((await res.json()).status === 'success') { Toast.success("更新成功"); toggleActivityEdit(false); openActivityDetail(currentActId); loadActivityHall(); loadManagement(); }
+    if((await res.json()).status === 'success') { Toast.success("信息已同步"); toggleActivityEdit(false); openActivityDetail(currentActId); loadActivityHall(); loadManagement(); }
 };
 
-window.handleCancelActivity = async function(id) {
-    if(!confirm("确定要删除吗？")) return;
-    const res = await fetch('/api/activity/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: id }) });
-    if((await res.json()).status === 'success') { Toast.success("已删除"); ModalManager.close('activityDetailModal'); loadActivityHall(); loadManagement(); }
-};
-
-window.handleQuitActivity = async function(id) {
-    if(!confirm("确定要退出吗？")) return;
-    const res = await fetch('/api/activity/quit', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: id }) });
-    if((await res.json()).status === 'success') { Toast.success("已退出"); ModalManager.close('activityDetailModal'); loadActivityHall(); loadManagement(); }
-};
-
-// 6. 管理页面渲染
+// 5. 管理页渲染 (同步更新)
 window.loadManagement = async function() {
     const launchedContainer = document.getElementById('manage-my-launched');
     const joinedContainer = document.getElementById('manage-my-joined');
     const badge = document.getElementById('manage-badge');
     if (!launchedContainer) return;
-
     try {
         const res = await fetch('/api/activity/my');
         const data = await res.json();
         let totalPending = 0;
-
-        launchedContainer.innerHTML = data.launched.length ? '' : '<p class="text-stone-300 text-sm py-4 italic">暂无发起的项目</p>';
+        launchedContainer.innerHTML = data.launched.length ? '' : '<p class="text-stone-300 text-sm py-4 italic">尚未发起项目</p>';
         data.launched.forEach(act => {
-            totalPending += act.members.filter(m=>m.status===0).length;
+            const pCount = act.members.filter(m=>m.status===0).length;
+            totalPending += pCount;
             launchedContainer.innerHTML += `
             <div class="card-warm p-6 rounded-[2rem] border border-stone-100 shadow-sm hover:shadow-md transition-all cursor-pointer group" onclick="openActivityDetail(${act.id})">
                 <div class="flex justify-between items-start mb-4">
                     <h5 class="font-bold text-stone-800 group-hover:text-amber-700 transition">${act.title}</h5>
-                    ${act.members.filter(m=>m.status===0).length > 0 ? `<span class="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">${act.members.filter(m=>m.status===0).length}人待处理</span>` : ''}
+                    ${pCount > 0 ? `<span class="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">${pCount}人申请</span>` : ''}
                 </div>
                 <span class="text-[10px] text-stone-400 font-bold uppercase tracking-widest">管理与详情 ➔</span>
             </div>`;
         });
-
-        joinedContainer.innerHTML = data.joined.length ? '' : '<p class="text-stone-300 text-sm py-4 italic">暂无参与的项目</p>';
+        joinedContainer.innerHTML = data.joined.length ? '' : '<p class="text-stone-300 text-sm py-4 italic">尚未加入项目</p>';
         data.joined.forEach(act => {
             const statusMap = { 0: '审核中', 1: '已入队', 2: '被拒绝' };
             const statusColor = act.my_status === 1 ? 'text-emerald-500' : (act.my_status === 2 ? 'text-red-400' : 'text-amber-500');
@@ -300,26 +279,19 @@ window.loadManagement = async function() {
                 <span class="text-xs font-bold ${statusColor}">${statusMap[act.my_status]}</span>
             </div>`;
         });
-
-        if (badge) {
-            badge.innerText = totalPending;
-            badge.classList.toggle('hidden', totalPending === 0);
-        }
-    } catch(e) { console.error("管理页加载失败", e); }
+        if (badge) { badge.innerText = totalPending; badge.classList.toggle('hidden', totalPending === 0); }
+    } catch(e) {}
 };
 
 window.handleCreateActivity = async function(e) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const data = {
-        title: fd.get('title'),
-        nature: fd.get('nature'),
-        description: fd.get('description'),
+        title: fd.get('title'), nature: fd.get('nature'), description: fd.get('description'),
         target_crowd: Array.from(document.querySelectorAll('input[name="target_grade"]:checked')).map(el => el.value),
         target_major: Array.from(document.querySelectorAll('input[name="target_major"]:checked')).map(el => el.value),
-        total_capacity: fd.get('total_capacity'),
-        deadline: fd.get('deadline')
+        total_capacity: fd.get('total_capacity'), deadline: fd.get('deadline')
     };
     const res = await fetch('/api/activity/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
-    if((await res.json()).status === 'success') { Toast.success("启动成功"); e.target.reset(); switchActivityTab('hall'); }
+    if((await res.json()).status === 'success') { Toast.success("项目招募已发布"); e.target.reset(); switchActivityTab('hall'); }
 };
