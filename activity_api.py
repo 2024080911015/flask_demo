@@ -39,15 +39,17 @@ def get_user_embedding(uid):
     return None
 
 def serialize_activity(act, my_uid):
+    """【核心封装】解决 undefined 问题，包含 GNN 契合度和人脉路径逻辑"""
     from app import user_name_map, follow_dict
     from models import Account, ActivityParticipant
     import torch
     import torch.nn.functional as F
 
+    # 1. 成员处理
     participants = ActivityParticipant.query.filter_by(activity_id=act.id).all()
     members = []
     my_status = -1 
-    my_apply_msg = "" # 🚀 新增：存储我自己的申请理由
+    my_apply_msg = ""
     
     for p in participants:
         acc = Account.query.get(p.uid)
@@ -61,9 +63,9 @@ def serialize_activity(act, my_uid):
         })
         if p.uid == my_uid:
             my_status = p.status
-            my_apply_msg = p.apply_msg # 🚀 记录我自己的理由
+            my_apply_msg = p.apply_msg
 
-    # GNN 契合度与人脉路径逻辑保持不变...
+    # 2. GNN 契合度计算 (维持不变)
     match_score = 0
     try:
         from activity_api import get_user_embedding
@@ -77,14 +79,34 @@ def serialize_activity(act, my_uid):
                 match_score = int(sim.item() * 100)
     except: pass
 
-    path_text = "由你发起" if act.publisher_uid == my_uid else "寻找路径中..."
-    my_following = follow_dict.get(my_uid, [])
-    if act.publisher_uid != my_uid:
-        if act.publisher_uid in my_following: path_text = "直接人脉"
+    # 🚀 3. 人脉路径算法升级
+    # 默认值不再使用“加载中”语义，改为“社交发现”语义
+    path_text = "发现新同学" 
+    
+    if act.publisher_uid == my_uid:
+        path_text = "✨ 由你发起"
+    else:
+        # 获取我关注的人列表
+        my_following = follow_dict.get(my_uid, [])
+        
+        # A. 一度关系：我直接关注了发起人
+        if act.publisher_uid in my_following:
+            path_text = "🤝 你关注的好友"
         else:
+            # B. 二度关系：我关注的人里，有人关注了发起人
+            found_bridge = False
             for fid in my_following:
-                if act.publisher_uid in follow_dict.get(fid, []):
-                    path_text = f"经 {user_name_map.get(fid, '同学')} 引荐"; break
+                # 获取这个好友关注的人
+                friend_following = follow_dict.get(fid, [])
+                if act.publisher_uid in friend_following:
+                    bridge_name = user_name_map.get(fid, "校友")
+                    path_text = f"🔗 经由 {bridge_name} 连接"
+                    found_bridge = True
+                    break
+            
+            # C. 三度兜底：如果完全没关系，显示“尚未建立连接”
+            if not found_bridge:
+                path_text = "🔭 跨圈层新机遇"
 
     return {
         "id": act.id,
@@ -98,10 +120,11 @@ def serialize_activity(act, my_uid):
         "member_count": sum(1 for m in members if m['status'] == 1),
         "members": members,
         "my_status": my_status,
-        "my_apply_msg": my_apply_msg, # 🚀 传给前端
+        "my_apply_msg": my_apply_msg,
         "match_score": match_score,
-        "path_text": path_text
+        "path_text": path_text # 🚀 现在这个值更具有导向性
     }
+
 @activity_bp.route('/api/activity/list', methods=['GET'])
 def list_activities():
     if 'uid' not in session: return jsonify({"status": "error"}), 401

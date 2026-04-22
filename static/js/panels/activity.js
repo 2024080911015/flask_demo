@@ -61,7 +61,10 @@ window.loadActivityHall = async function() {
                 <p class="text-stone-400 text-sm italic line-clamp-2 mb-6">“${act.description}”</p>
                 <div class="mt-auto space-y-4">
                     <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-stone-400">
-                        <span>${act.path_text}</span>
+                        <span class="flex items-center gap-1">
+                            <span class="w-1 h-1 rounded-full bg-amber-400 animate-pulse"></span> 
+                            ${act.path_text}
+                        </span>
                         <span class="${act.my_status === 1 ? 'text-emerald-500' : 'text-amber-500'}">${act.my_status===1?'✅ 已入队':(act.my_status===0?'⏳ 审核中':'')}</span>
                     </div>
                     <div class="flex items-center justify-between">
