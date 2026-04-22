@@ -6,6 +6,30 @@ import os
 
 activity_bp = Blueprint('activity', __name__)
 
+@activity_bp.route('/api/activity/update', methods=['POST'])
+def update_activity():
+    """发起人修改活动信息"""
+    if 'uid' not in session: return jsonify({"status": "error", "message": "未登录"}), 401
+    uid = session['uid']
+    data = request.json
+    act_id = data.get('activity_id')
+    
+    act = Activity.query.get(act_id)
+    if not act or act.publisher_uid != uid:
+        return jsonify({"status": "error", "message": "无权操作"}), 403
+
+    try:
+        if 'title' in data: act.title = data['title']
+        if 'nature' in data: act.nature = data['nature']
+        if 'description' in data: act.description = data['description']
+        if 'total_capacity' in data: act.total_capacity = int(data['total_capacity'])
+        if 'deadline' in data: act.deadline = data['deadline']
+        db.session.commit()
+        return jsonify({"status": "success", "message": "项目信息已更新"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 def get_user_embedding(uid):
     try:
         embeddings = torch.load("user_embeddings.pt", map_location='cpu', weights_only=False)
@@ -15,32 +39,31 @@ def get_user_embedding(uid):
     return None
 
 def serialize_activity(act, my_uid):
-    """【核心封装】已补全头像字段，确保阵容显示真实头像"""
     from app import user_name_map, follow_dict
-    from models import Account, ActivityParticipant  # 🚀 显式引入 Account
+    from models import Account, ActivityParticipant
     import torch
     import torch.nn.functional as F
 
-    # 1. 获取所有参与者及其头像
     participants = ActivityParticipant.query.filter_by(activity_id=act.id).all()
     members = []
     my_status = -1 
+    my_apply_msg = "" # 🚀 新增：存储我自己的申请理由
     
     for p in participants:
-        # 🚀 核心修改：查询 Account 获取头像
         acc = Account.query.get(p.uid)
         members.append({
             "uid": p.uid,
             "username": acc.username if acc else f"用户{p.uid}",
-            "avatar": acc.avatar if acc else None, # 🚀 传出头像文件名
+            "avatar": acc.avatar if acc else None,
             "status": p.status,
             "is_initiator": p.is_initiator,
             "apply_msg": p.apply_msg
         })
         if p.uid == my_uid:
             my_status = p.status
+            my_apply_msg = p.apply_msg # 🚀 记录我自己的理由
 
-    # 2. GNN 契合度计算 (维持不变)
+    # GNN 契合度与人脉路径逻辑保持不变...
     match_score = 0
     try:
         from activity_api import get_user_embedding
@@ -54,17 +77,14 @@ def serialize_activity(act, my_uid):
                 match_score = int(sim.item() * 100)
     except: pass
 
-    # 3. 人脉路径 (维持不变)
-    path_text = "寻找路径中..."
+    path_text = "由你发起" if act.publisher_uid == my_uid else "寻找路径中..."
     my_following = follow_dict.get(my_uid, [])
-    if act.publisher_uid == my_uid:
-        path_text = "由你发起"
-    elif act.publisher_uid in my_following:
-        path_text = "直接人脉"
-    else:
-        for fid in my_following:
-            if act.publisher_uid in follow_dict.get(fid, []):
-                path_text = f"经 {user_name_map.get(fid, '同学')} 引荐"; break
+    if act.publisher_uid != my_uid:
+        if act.publisher_uid in my_following: path_text = "直接人脉"
+        else:
+            for fid in my_following:
+                if act.publisher_uid in follow_dict.get(fid, []):
+                    path_text = f"经 {user_name_map.get(fid, '同学')} 引荐"; break
 
     return {
         "id": act.id,
@@ -78,10 +98,10 @@ def serialize_activity(act, my_uid):
         "member_count": sum(1 for m in members if m['status'] == 1),
         "members": members,
         "my_status": my_status,
+        "my_apply_msg": my_apply_msg, # 🚀 传给前端
         "match_score": match_score,
         "path_text": path_text
     }
-
 @activity_bp.route('/api/activity/list', methods=['GET'])
 def list_activities():
     if 'uid' not in session: return jsonify({"status": "error"}), 401
