@@ -32,6 +32,15 @@ app.register_blueprint(activity_bp)
 # ==========================================
 user_name_map = {} 
 with app.app_context():
+    # SQLite 性能优化：启用 WAL 模式 + 忙等待超时
+    from sqlalchemy import event
+    @event.listens_for(db.engine, 'connect')
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute('PRAGMA journal_mode=WAL')
+        cursor.execute('PRAGMA busy_timeout=5000')
+        cursor.execute('PRAGMA synchronous=NORMAL')
+        cursor.close()
     db.create_all()
     accounts = Account.query.all()
     for acc in accounts:
@@ -48,15 +57,6 @@ try:
     users_list = UserInfo.query.all()
     user_info_map = {u.uid: u.info for u in users_list}
 except Exception as e:
-    pass
-
-next_uid = 1001
-try:
-    from sqlalchemy import func
-    max_uid = db.session.query(func.max(UserInfo.uid)).scalar()
-    if max_uid and max_uid >= next_uid:
-        next_uid = max_uid + 1
-except Exception:
     pass
 
 follow_dict = step3_recommend.follow_dict
@@ -95,13 +95,14 @@ def tuijian():
     except: is_cold_start = True
 
     rec_ids =[]
+    my_following = follow_dict.get(sid, [])
     if is_cold_start:
         import re
         target_info = user_info_map.get(sid, "")
         target_words = set(re.findall(r'[\u4e00-\u9fa5]+', target_info))
         scores =[]
         for uid, info in user_info_map.items():
-            if uid == sid: continue 
+            if uid == sid or uid in my_following: continue
             if community_tag:
                 comm_keywords = COMMUNITY_RULES.get(community_tag,[])
                 if not any(kw in info for kw in comm_keywords): continue
@@ -210,15 +211,24 @@ def get_social_report():
 @app.route('/api/register', methods=['POST'])
 def api_register():
     data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
     info = data.get('info', f"性别:{data.get('gender', '未知')},年级:{data.get('grade', '大一')},专业:{data.get('major', '未知')},爱好:{data.get('hobbies', '无')},标签:{data.get('tags', '萌新')}")
-    if not username or not password: return jsonify({"status": "error", "message": "不能为空"}), 400
-    if Account.query.filter_by(username=username).first(): return jsonify({"status": "error", "message": "已存在"}), 409
+
+    if not username or not password:
+        return jsonify({"status": "error", "message": "账号和密码不能为空"}), 400
+    if len(username) < 2 or len(username) > 20:
+        return jsonify({"status": "error", "message": "用户名长度需在2-20个字符之间"}), 400
+    if len(password) < 6:
+        return jsonify({"status": "error", "message": "密码长度不能少于6位"}), 400
+    if Account.query.filter_by(username=username).first():
+        return jsonify({"status": "error", "message": "该用户名已被注册"}), 409
+
     try:
-        global next_uid
-        new_uid = next_uid
-        next_uid += 1
+        # 数据库内自增 uid，避免全局变量并发冲突
+        from sqlalchemy import func
+        max_uid = db.session.query(func.max(Account.uid)).scalar() or 0
+        new_uid = max_uid + 1
         db.session.add(Account(uid=new_uid, username=username, password_hash=generate_password_hash(password)))
         db.session.add(UserInfo(uid=new_uid, info=info))
         db.session.commit()

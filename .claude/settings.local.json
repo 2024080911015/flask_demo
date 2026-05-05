@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import py_compile; py_compile.compile\\('app.py', doraise=True\\); print\\('app.py OK'\\)\")",
+      "Bash(node -c \"static/js/auth.js\")",
+      "Bash(node --check \"static/js/auth.js\")"
+    ]
+  }
+}
