@@ -127,13 +127,16 @@ def recommend_friends(user_id, top_k=5, mode="social", community=None):
         if len(candidate_ids) >= top_k + 20: 
             break
 
+    # 获取当前用户的关注列表（两种模式都需要用来过滤）
+    user_following = follow_dict.get(user_id, [])
+
     # ================= 模式分支逻辑 =================
     if mode == "gnn":
-        return candidate_ids[:top_k]
+        # 纯相似度模式也要过滤掉已关注的人
+        return [rid for rid in candidate_ids if rid not in user_following][:top_k]
 
     # 模式 B: 社交网络优化模式
     final_rec = []
-    user_following = follow_dict.get(user_id, [])
 
     for rid in candidate_ids:
         if rid in user_following:

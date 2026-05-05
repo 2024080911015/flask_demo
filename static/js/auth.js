@@ -43,6 +43,8 @@ window.closeRegistrationOptions = function() { document.getElementById('registra
 
 window.confirmRegistration = async function() {
     const sucEl = document.getElementById('reg-options-success');
+    const errEl = document.getElementById('reg-options-error');
+    const btn = document.querySelector('#registrationOptionsModal .confirm-btn');
     const username = document.getElementById('reg-username').value.trim();
     const password = document.getElementById('reg-password').value;
     const gender = document.querySelector('input[name="reg_gender"]:checked')?.value || "未知";
@@ -51,15 +53,32 @@ window.confirmRegistration = async function() {
     const hobbies = Array.from(document.querySelectorAll('input[name="reg_hobbies"]:checked')).map(n => n.value).join(' ') || "无";
     const tags = Array.from(document.querySelectorAll('input[name="reg_tags"]:checked')).map(n => n.value).join(' ') || "无标签";
 
+    // 防止重复提交
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = '注册中...';
+    errEl.classList.add('hidden');
+    sucEl.classList.add('hidden');
+
     try {
         const body = { username, password, gender, grade, major, hobbies, tags };
         const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
         if (data.status === 'success') {
-            sucEl.textContent = `注册成功！跳转中...`; sucEl.classList.remove('hidden');
+            sucEl.textContent = '注册成功！跳转中...'; sucEl.classList.remove('hidden');
             setTimeout(() => { closeRegistrationOptions(); switchAuthTab('login'); document.getElementById('login-username').value = username; }, 1500);
+        } else {
+            errEl.textContent = data.message || '注册失败，请重试';
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = '确认注册并生成社交档案';
         }
-    } catch {}
+    } catch (e) {
+        errEl.textContent = '网络错误，请检查连接后重试';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = '确认注册并生成社交档案';
+    }
 }
 
 window.doLogout = async function() {
