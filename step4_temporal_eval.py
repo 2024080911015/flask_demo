@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 from torch_geometric.utils import negative_sampling
 from sklearn.metrics import roc_auc_score
+import sqlite3
 
 print(" 正在启动动态时间序列链路预测 (Temporal Link Prediction)...")
 
@@ -16,7 +17,9 @@ graph_data = torch.load('campus_graph_full.pt', weights_only=False)
 x = graph_data.x
 
 # 加载按时间排序的边列表
-df_edges = pd.read_csv('edges_time.csv')
+conn = sqlite3.connect('campus_social.db')
+df_edges = pd.read_sql_query("SELECT source_id, target_id FROM edges_time ORDER BY timestamp ASC", conn)
+conn.close()
 total_edges = len(df_edges)
 
 # 按时间顺序，前 80% 作为过去(训练集)，后 20% 作为未来(测试集)
