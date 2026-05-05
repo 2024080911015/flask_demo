@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import pandas as pd
 import os
+import sqlite3
 
 print(" 启动时序图推荐推理引擎...")
 
@@ -12,12 +13,11 @@ except FileNotFoundError:
     print(" 找不到 user_embeddings.pt")
     exit()
 
-# 2. 安全加载用户信息
-try:
-    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.csv')
-    df_users = pd.read_csv(csv_path, encoding='utf-8')
-except UnicodeDecodeError:
-    df_users = pd.read_csv(csv_path, encoding='gbk')
+# 2. 从数据库加载用户信息
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'campus_social.db')
+conn = sqlite3.connect(db_path)
+df_users = pd.read_sql_query("SELECT uid, info FROM users", conn)
+conn.close()
 
 user_info_map = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
 
@@ -26,26 +26,25 @@ user_info_map = pd.Series(df_users['info'].values, index=df_users['uid']).to_dic
 # 修改版：加载最新的时间序列关注列表
 # ==========================================
 def load_social_data():
-    """加载社交网络数据 (统一使用最新的 edges_time.csv)"""
+    """加载社交网络数据 (统一使用数据库中的 edges_time 表)"""
     try:
-        # 核心修改 1：把 edges.csv 换成最新的 edges_time.csv
-        edges_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'edges_time.csv')
-        df_edges = pd.read_csv(edges_path)
-        
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'campus_social.db')
+        conn = sqlite3.connect(db_path)
+        df_edges = pd.read_sql_query("SELECT source_id, target_id FROM edges_time", conn)
+        conn.close()
+
         follow_dict = {}
-        # 核心修改 2：解析新表格的逻辑 (一行只有一条记录)
         for idx, row in df_edges.iterrows():
             user_id = int(row['source_id'])
             target_id = int(row['target_id'])
-            
+
             if user_id not in follow_dict:
                 follow_dict[user_id] =[]
-            
-            # 把关注的人加进列表里
+
             if target_id not in follow_dict[user_id]:
                 follow_dict[user_id].append(target_id)
 
-        print(f" 成功从 edges_time.csv 加载了 {len(follow_dict)} 个用户的关注关系！")
+        print(f" 成功从数据库加载了 {len(follow_dict)} 个用户的关注关系！")
         return follow_dict
 
     except Exception as e:

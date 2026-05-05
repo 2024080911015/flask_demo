@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify, render_template, session
 import os
 import torch
-import pandas as pd
-import csv
 from werkzeug.security import generate_password_hash, check_password_hash
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -47,24 +45,17 @@ except FileNotFoundError:
 
 user_info_map = {}
 try:
-    users_csv_path = os.path.join(current_dir, "users.csv")
-    if os.path.exists(users_csv_path):
-        try: df_users = pd.read_csv(users_csv_path, encoding='utf-8')
-        except UnicodeDecodeError: df_users = pd.read_csv(users_csv_path, encoding='gbk')
-        if 'uid' in df_users.columns and 'info' in df_users.columns:
-            temp_dict = pd.Series(df_users['info'].values, index=df_users['uid']).to_dict()
-            user_info_map = {int(k): str(v) for k, v in temp_dict.items()}
+    users_list = UserInfo.query.all()
+    user_info_map = {u.uid: u.info for u in users_list}
 except Exception as e:
     pass
 
 next_uid = 1001
 try:
-    with open(users_csv_path, 'r', encoding='utf-8') as f:
-        for row in csv.DictReader(f):
-            try:
-                uid = int(row.get('uid', 0))
-                if uid >= next_uid: next_uid = uid + 1
-            except: pass
+    from sqlalchemy import func
+    max_uid = db.session.query(func.max(UserInfo.uid)).scalar()
+    if max_uid and max_uid >= next_uid:
+        next_uid = max_uid + 1
 except Exception:
     pass
 
@@ -231,8 +222,6 @@ def api_register():
         db.session.add(Account(uid=new_uid, username=username, password_hash=generate_password_hash(password)))
         db.session.add(UserInfo(uid=new_uid, info=info))
         db.session.commit()
-        with open(users_csv_path, mode='a', encoding='utf-8', newline='') as f:
-            csv.writer(f).writerow([new_uid, info])
         user_info_map[new_uid] = info
         user_name_map[new_uid] = username
         return jsonify({"status": "success", "message": "注册成功", "data": {"uid": new_uid, "username": username, "info": info}}), 201
@@ -297,7 +286,7 @@ def update_user_profile():
             session['username'] = new_username  # 同步更新 Session 中的缓存
             user_name_map[uid] = new_username   # 同步更新内存 Map
 
-        # 4. 核心：个人标签资料更新（涉及 CSV 同步）
+        # 4. 核心：个人标签资料更新
         new_info = data.get('info')
         if new_info:
             # 更新数据库 UserInfo 表
@@ -311,18 +300,6 @@ def update_user_profile():
             # 更新内存中的资料 Map，保证 API 立即返回新结果
             global user_info_map
             user_info_map[uid] = new_info
-            
-            # 🚀 同步更新 users.csv (关键：保证 T+1 重训能读到新特征)
-            users_csv_path = os.path.join(current_dir, "users.csv")
-            if os.path.exists(users_csv_path):
-                try:
-                    df = pd.read_csv(users_csv_path)
-                    # 定位 uid 并更新 info 这一列
-                    df.loc[df['uid'] == uid, 'info'] = new_info
-                    # 保存，使用 utf-8-sig 确保 Windows 下 Excel 打开不乱码
-                    df.to_csv(users_csv_path, index=False, encoding='utf-8-sig')
-                except Exception as csv_e:
-                    print(f"[Warning] CSV 同步失败: {csv_e}")
 
         # 提交所有更改到数据库
         db.session.commit()
@@ -393,9 +370,8 @@ def admin_retrain():
         step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
         step3_recommend.follow_dict = step3_recommend.load_social_data()
         global user_info_map
-        try: df_users = pd.read_csv(users_csv_path, encoding='utf-8')
-        except UnicodeDecodeError: df_users = pd.read_csv(users_csv_path, encoding='gbk')
-        user_info_map = {int(k): str(v) for k, v in pd.Series(df_users['info'].values, index=df_users['uid']).to_dict().items()}
+        users_list = UserInfo.query.all()
+        user_info_map = {u.uid: u.info for u in users_list}
         return jsonify({"status": "success", "message": "模型重训完毕！已成功吸收新增的社交关系与新用户！"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -417,13 +393,6 @@ def toggle_follow():
         elif action == 'unfollow' and target_uid in step3_recommend.follow_dict[current_uid]:
             step3_recommend.follow_dict[current_uid].remove(target_uid)
             db.session.execute(text("DELETE FROM edges_time WHERE source_id = :s AND target_id = :t"), {'s': current_uid, 't': target_uid})
-        edges_path = os.path.join(current_dir, 'edges_time.csv')
-        df = pd.read_csv(edges_path)
-        if action == 'follow':
-            df = pd.concat([df, pd.DataFrame({'timestamp':[datetime.now().strftime("%Y-%m-%d %H:%M:%S")], 'source_id':[current_uid], 'target_id':[target_uid]})], ignore_index=True)
-        elif action == 'unfollow':
-            df = df[~((df['source_id'] == current_uid) & (df['target_id'] == target_uid))]
-        df.to_csv(edges_path, index=False)
         db.session.commit()
         return jsonify({"status": "success", "message": f"已{'关注' if action=='follow' else '取消关注'}"})
     except Exception as e:
@@ -486,9 +455,8 @@ def daily_retrain_task():
             step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
             step3_recommend.follow_dict = step3_recommend.load_social_data()
             global user_info_map
-            try: df_users = pd.read_csv(users_csv_path, encoding='utf-8')
-            except UnicodeDecodeError: df_users = pd.read_csv(users_csv_path, encoding='gbk')
-            user_info_map = {int(k): str(v) for k, v in pd.Series(df_users['info'].values, index=df_users['uid']).to_dict().items()}
+            users_list = UserInfo.query.all()
+            user_info_map = {u.uid: u.info for u in users_list}
         print(f"[Scheduler] === 每日定时 T+1 重训任务执行成功！ ===")
     except Exception as e:
         print(f"[Scheduler] 异常: {e}")

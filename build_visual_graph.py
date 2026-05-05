@@ -34,29 +34,25 @@ def generate_graph_json():
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        # 🚀 核心修复：查询语句必须包含 signature 和 status
+        # 查询账户信息
         cursor.execute("SELECT uid, username, avatar, signature, status FROM accounts")
         for row in cursor.fetchall():
             account_dict[row[0]] = {
-                'username': row[1], 
+                'username': row[1],
                 'avatar': row[2],
-                'signature': row[3], # 索引 3
-                'status': row[4]      # 索引 4
+                'signature': row[3],
+                'status': row[4]
             }
+        # 从数据库读取用户信息和边数据
+        df_users = pd.read_sql_query("SELECT uid, info FROM users", conn)
+        df_edges = pd.read_sql_query("SELECT source_id, target_id FROM edges_time", conn)
         conn.close()
     except Exception as e:
         print(f"⚠️ 读取数据库信息失败: {e}")
+        return False
 
-    users_csv = os.path.join(current_dir, 'users.csv')
-    edges_csv = os.path.join(current_dir, 'edges_time.csv')
     output_json = os.path.join(current_dir, 'static', 'graph.json')
 
-    try:
-        df_users = pd.read_csv(users_csv, encoding='utf-8')
-    except:
-        df_users = pd.read_csv(users_csv, encoding='gbk')
-        
-    df_edges = pd.read_csv(edges_csv)
     df_edges = df_edges[(df_edges['source_id'] > 0) & (df_edges['target_id'] > 0)]
 
     G = nx.Graph()
