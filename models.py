@@ -78,3 +78,11 @@ class ActivityParticipant(db.Model):
     is_initiator = db.Column(db.Boolean, default=False) # 是否为初始核心成员
     status = db.Column(db.Integer, default=0) # 0-申请中, 1-已通过, 2-已拒绝
     apply_msg = db.Column(db.String(255), nullable=True) # 申请理由
+
+# 8. 社交足迹：记录用户最后一次查看他人资料的时间
+class UserVisitLog(db.Model):
+    __tablename__ = 'user_visit_logs'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    viewer_uid = db.Column(db.Integer, nullable=False, index=True) # 谁在看
+    target_uid = db.Column(db.Integer, nullable=False, index=True) # 在看谁
+    last_visit_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())

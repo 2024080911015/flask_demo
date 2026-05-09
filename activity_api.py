@@ -153,14 +153,21 @@ def join_activity():
 @activity_bp.route('/api/activity/my', methods=['GET'])
 def get_my_activities():
     if 'uid' not in session: return jsonify({"status": "error"}), 401
-    my_uid = session['uid']
-    launched = Activity.query.filter_by(publisher_uid=my_uid).all()
-    joined_ids = [p.activity_id for p in ActivityParticipant.query.filter_by(uid=my_uid, is_initiator=False).all()]
+    
+    #  核心修改：支持传入 target_uid 参数，如果不传，则默认查询自己
+    current_uid = session['uid']
+    target_uid = request.args.get('target_uid', type=int) or current_uid
+    
+    # 我发起的
+    launched = Activity.query.filter_by(publisher_uid=target_uid).all()
+    # 我参与的 (排除自己发起的)
+    joined_ids = [p.activity_id for p in ActivityParticipant.query.filter_by(uid=target_uid, is_initiator=False).all()]
     joined = Activity.query.filter(Activity.id.in_(joined_ids)).all() if joined_ids else []
+
     return jsonify({
         "status": "success", 
-        "launched": [serialize_activity(act, my_uid) for act in launched], 
-        "joined": [serialize_activity(act, my_uid) for act in joined]
+        "launched": [serialize_activity(act, current_uid) for act in launched], 
+        "joined": [serialize_activity(act, current_uid) for act in joined]
     })
 
 @activity_bp.route('/api/activity/audit', methods=['POST'])

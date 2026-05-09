@@ -59,7 +59,7 @@
   <div id="legend">
     <div style="font-weight: bold; color: #38bdf8; margin-bottom: 8px; border-bottom: 1px solid #475569; padding-bottom: 5px;">星环关系说明</div>
     <div>🟡 <span style="color:#fbbf24; font-weight:bold;">金色光环 (你自己)</span></div>
-    <div>🟠 <span style="color:#f59e0b; font-weight:bold;">黄色光环 (互相关注)</span></div>
+    <div>🟠 <span style="color:#a76a00; font-weight:bold;">黄色光环 (互相关注)</span></div>
     <div>🔵 <span style="color:#3b82f6;">蓝色光环 (你的关注)</span></div>
     <div>⚪ <span style="color:#9ca3af;">灰色光环 (你的粉丝)</span></div>
     <div>✨ <span style="color:#00ffcc; font-weight:bold;">青色流光 (AI预测好友)</span></div>
@@ -67,7 +67,7 @@
   
   <div id="3d-graph"></div>
 
-  <script type="module">
+ <script type="module">
     import * as THREE from 'https://esm.sh/three';
     import { UnrealBloomPass } from 'https://esm.sh/three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
@@ -80,34 +80,33 @@
     if (!centerUid || centerUid === 'null') {
       document.getElementById('loading').innerText = "❌ 缺少 uid 参数！";
     } else {
-      //  核心修复：这里请求的是全校头像接口 (/api/users/avatars)！
+      // 🚀 新增：内部状态映射表（为了不修改你的绘图逻辑，我们依然填充这些变量）
+      let pulseMap = {};
+      let realtimeAvatars = {};
+
       const currentTimestamp = new Date().getTime();
-      Promise.all([
-        fetch('/static/graph.json?t=' + currentTimestamp).then(res => res.json()),
-        fetch('/api/users/avatars?t=' + currentTimestamp).then(res => res.json()).catch(err => {
-            console.error("请求实时头像库失败", err);
-            return { avatars: {} };
-        })
-      ]).then(([graphData, avatarRes]) => {
+      
+      // 🚀 修改点：从原来的 Promise.all 多个请求，改为请求单一的动态 API
+      fetch(`/api/graph/dynamic_data?t=${currentTimestamp}`)
+      .then(res => res.json())
+      .then(graphData => {
           document.getElementById('loading').style.display = 'none';
 
-          const realtimeAvatars = {};
-          if (avatarRes && avatarRes.avatars) {
-              for (let uidKey in avatarRes.avatars) {
-                  realtimeAvatars[String(uidKey)] = avatarRes.avatars[uidKey];
-              }
-          }
+          // 🚀 保持你的逻辑：填充映射表，这样你下面的 pulseMap[nid] 就不用改了
+          graphData.nodes.forEach(n => {
+              const strId = String(n.id);
+              if (n.hasPulse) pulseMap[strId] = true;
+              if (n.avatar) realtimeAvatars[strId] = n.avatar;
+          });
 
           let adjacencyList = {};
           const followingSet = new Set(); 
           const followerSet = new Set();  
 
-         graphData.nodes.forEach(n => {
+          // 🚀 核心：这部分是你的原有逻辑，我完全保留
+          graphData.nodes.forEach(n => {
               adjacencyList[String(n.id)] = new Set();
-              const strId = String(n.id);
-              if (realtimeAvatars[strId]) {
-                  n.avatar = realtimeAvatars[strId];
-              }
+              // 这里的 avatar 赋值已经由后端完成，不用额外操作
           });
           
           graphData.links.forEach(l => {
@@ -120,7 +119,6 @@
             if (t === centerUid) followerSet.add(s);
           });
 
-          // 暴露给全局，供过滤函数使用
           window.centerUid = centerUid;
           window.recIdsStr = recIdsStr;
           window.followingSet = followingSet;
@@ -130,7 +128,6 @@
           const keepIds = new Set([centerUid, ...existingFriends, ...recIdsStr]);
           
           const filteredNodes = graphData.nodes.filter(n => keepIds.has(String(n.id)));
-          
           const filteredLinks = graphData.links.filter(l => {
               const s = String(l.source.id || l.source);
               const t = String(l.target.id || l.target);
@@ -143,6 +140,7 @@
 
           recIdsStr.forEach(rid => { filteredLinks.push({ source: centerUid, target: rid, isVirtual: true, isDirect: false }); });
 
+          // 🚀 下面进入渲染阶段：完全保留你提供的 nodeThreeObject 及其内部 drawNeonRing 逻辑
           window.Graph = ForceGraph3D()(document.getElementById('3d-graph'))
             .backgroundColor('#02020a')
             .nodeOpacity(1.0)
@@ -151,19 +149,20 @@
                 const isFollowing = followingSet.has(nid);
                 const isFollower = followerSet.has(nid);
 
-                let glowColor = '#9ca3af'; // 粉丝：灰色
+                const hasPulse = node.hasPulse === true;
+                let glowColor = '#9ca3af'; 
                 let size = 18; 
                 
                 if (nid === centerUid) { 
-                    glowColor = '#fbbf24'; size = 28; // 中心节点：大金球
+                    glowColor = '#fbbf24'; size = 28;
                 } else if (recIdsStr.includes(nid)) { 
-                    glowColor = '#00ffcc'; size = 22; // AI推荐：青色
+                    glowColor = '#00ffcc'; size = 22;
                 } else if (isFollowing && isFollower) {
-                    glowColor = '#f59e0b'; size = 18; // 互关：暖黄
+                    glowColor = '#f59e0b'; size = 18;
                 } else if (isFollowing) {
-                    glowColor = '#3b82f6'; size = 18; // 你的关注：冷蓝
+                    glowColor = '#3b82f6'; size = 18;
                 } else if (isFollower) {
-                    glowColor = '#9ca3af'; size = 18; // 你的粉丝：灰色
+                    glowColor = '#9ca3af'; size = 18;
                 }
 
                 const canvasSize = 256;
@@ -182,7 +181,44 @@
                 const sprite = new THREE.Sprite(material);
                 sprite.scale.set(size, size, 1);
 
-                const drawNeonRing = () => {
+                const renderAll = () => {
+                    ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+                    // --- 1. 绘制背景或头像 ---
+                    if (node.avatar && img.complete && img.naturalWidth !== 0) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
+                        ctx.clip(); 
+                        ctx.filter = 'brightness(80%) contrast(110%)'; 
+                        ctx.drawImage(img, center - radius, center - radius, radius*2, radius*2);
+                        ctx.restore(); 
+                    } else {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
+                        ctx.clip();
+                        ctx.fillStyle = '#1e293b';
+                        ctx.fill();
+                        ctx.font = 'bold 90px sans-serif';
+                        ctx.fillStyle = '#cbd5e1'; 
+                        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText((node.username || 'U').charAt(0).toUpperCase(), center, center + 8);
+                        ctx.restore();
+                    }
+
+                    // --- 2. 绘制霓虹圈与红点 (你原有的逻辑) ---
+                    // 呼吸脉冲环
+                    if (hasPulse && nid !== centerUid) {
+                        const wave = Math.sin(Date.now() / 400) * 8 + 8;
+                        ctx.beginPath();
+                        ctx.arc(center, center, radius + 25 + wave, 0, 2 * Math.PI);
+                        ctx.strokeStyle = 'rgba(255, 77, 79, 0.15)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+
+                    // 核心霓虹圈
                     ctx.beginPath();
                     ctx.arc(center, center, radius, 0, 2 * Math.PI);
                     ctx.lineWidth = lineWidth;
@@ -198,93 +234,95 @@
                     ctx.shadowBlur = 0;
                     ctx.stroke();
 
+                    // 右上角红点
+                    if (hasPulse && nid !== centerUid) {
+                        ctx.save();
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#ff4d4f';
+                        ctx.fillStyle = '#ff4d4f';
+                        ctx.beginPath();
+                        const dotX = center + radius * 0.85;
+                        const dotY = center - radius * 0.85;
+                        ctx.arc(dotX, dotY, 12, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.restore();
+                    }
                     texture.needsUpdate = true;
                 };
-
+                // 预准备图片对象
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
                 if (node.avatar) {
-                    const img = new Image();
-                    img.crossOrigin = "Anonymous";
                     img.src = `/static/avatars/${node.avatar}?t=${Date.now()}`;
-                    img.onload = () => {
-                        ctx.clearRect(0, 0, canvasSize, canvasSize);
-                        ctx.save();
-                        ctx.beginPath();
-                        ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
-                        ctx.clip(); 
-                        ctx.filter = 'brightness(80%) contrast(110%)'; 
-                        ctx.drawImage(img, center - radius, center - radius, radius*2, radius*2);
-                        ctx.restore(); 
-                        drawNeonRing();
-                    };
+                    img.onload = () => renderAll();
+                    img.onerror = () => renderAll();
                 } else {
-                    ctx.clearRect(0, 0, canvasSize, canvasSize);
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.arc(center, center, radius - lineWidth/2, 0, 2 * Math.PI);
-                    ctx.clip();
-                    ctx.fillStyle = '#1e293b';
-                    ctx.fill();
-                    ctx.font = 'bold 90px sans-serif';
-                    ctx.fillStyle = '#cbd5e1'; 
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText((node.username || 'U').charAt(0).toUpperCase(), center, center + 8);
-                    ctx.restore();
-                    drawNeonRing();
+                    renderAll();
                 }
+                // 🚀 核心修复 3：修正动画判断逻辑
+                if (hasPulse) {
+                    let animationFrameId;
+                    const animate = () => {
+                        // 如果节点状态被外部修改为 false，停止动画
+                        if (node.hasPulse === false) {
+                            renderAll();
+                            cancelAnimationFrame(animationFrameId);
+                            return;
+                        }
+                        const s = size + Math.sin(Date.now() / 200) * 1.5;
+                        sprite.scale.set(s, s, 1);
+                        renderAll(); 
+                        animationFrameId = requestAnimationFrame(animate);
+                    };
+                    animate();
+                } else {
+                    renderAll();
+                }
+
                 return sprite;
             })
-            // 🚀 核心修复：提升好友间连线（2度连线）的可见度和亮度！
+
+               
+            .onNodeClick(node => {
+                if (window.parent && window.parent.openSocialDrawer) {
+                    window.parent.openSocialDrawer(node.id);
+                }
+            })
+            // 🚀 其余的 linkColor, linkWidth, nodeLabel, graphData 逻辑全部照旧
             .linkColor(link => {
-                if (link.isVirtual) return 'rgba(0, 255, 204, 0.8)'; // AI推荐
-                if (link.isDirect) return 'rgba(100, 160, 255, 0.8)'; // 你和好友(1度): 更明亮的蓝白线
-                return 'rgba(200, 220, 255, 0.35)'; // 好友间(2度): 亮度提高，不再是暗淡透明线
+                if (link.isVirtual) return 'rgba(0, 255, 204, 0.8)';
+                if (link.isDirect) return 'rgba(100, 160, 255, 0.8)';
+                return 'rgba(200, 220, 255, 0.35)';
             }) 
             .linkWidth(link => {
                 if (link.isVirtual) return 2.0; 
-                if (link.isDirect) return 1.2; // 1度连线稍微加粗
-                return 0.4; // 2度连线加粗一倍，一眼就能看清蛛网结构
+                if (link.isDirect) return 1.2;
+                return 0.4;
             })
             .linkDirectionalParticles(link => link.isVirtual ? 4 : 0) 
             .linkDirectionalParticleSpeed(0.008)
             .linkDirectionalParticleWidth(1.5)
             .linkDirectionalParticleColor(() => '#00ffcc') 
-            
-           .nodeLabel(node => {
-              const nid = String(node.id);
-              // 🚀 1. 状态标签渲染
-    const statusHtml = node.status ? 
-        `<span style="margin-left:8px; padding:2px 6px; background:rgba(251,191,36,0.3); color:#fbbf24; border:1px solid rgba(251,191,36,0.5); border-radius:4px; font-size:10px; font-weight:bold;">${node.status}</span>` : "";
-
-    // 🚀 2. 个人签名渲染 (带分割线和引号)
-    const signatureHtml = node.signature ? 
-        `<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1); color:#94a3b8; font-style:italic; font-size:11px; line-height:1.4;">“${node.signature}”</div>` : "";
-
-              let relationTag = "";
-              if (nid === centerUid) relationTag = "<span class='badge' style='color:#fbbf24; border:1px solid #fbbf24;'>👉 你自己</span>";
-              else if (recIdsStr.includes(nid)) relationTag = "<span class='badge' style='color:#00ffcc; border:1px solid #00ffcc;'>✨ AI推荐</span>";
-              else {
-                  const isFollowing = followingSet.has(nid), isFollower = followerSet.has(nid);
-                  if (isFollowing && isFollower) relationTag = "<span class='badge' style='color:#f59e0b; border:1px solid #f59e0b;'>🤝 互相关注</span>";
-                  else if (isFollowing) relationTag = "<span class='badge' style='color:#3b82f6; border:1px solid #3b82f6;'>👀 你的关注</span>";
-                  else if (isFollower) relationTag = "<span class='badge' style='color:#9ca3af; border:1px solid #9ca3af;'>🌟 你的粉丝</span>";
-              }
-              return `
-                  <div class="node-tooltip">
-                    <div class="name">
-                      👤 ${node.username||'User'} 【${node.community||'未知'}】 ${statusHtml} ${relationTag}
-                      </div>
-                    <div class="info">
-                      ${(node.info||'').replace(/,/g, '<br/>')}
-                      </div>
-                    ${signatureHtml}
-                  </div>`;
+            .nodeLabel(node => {
+                const nid = String(node.id);
+                const statusHtml = node.status ? `<span style="margin-left:8px; padding:2px 6px; background:rgba(251,191,36,0.3); color:#fbbf24; border:1px solid rgba(251,191,36,0.5); border-radius:4px; font-size:10px; font-weight:bold;">${node.status}</span>` : "";
+                const signatureHtml = node.signature ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1); color:#94a3b8; font-style:italic; font-size:11px; line-height:1.4;">“${node.signature}”</div>` : "";
+                let relationTag = "";
+                if (nid === centerUid) relationTag = "<span class='badge' style='color:#fbbf24; border:1px solid #fbbf24;'>👉 你自己</span>";
+                else if (recIdsStr.includes(nid)) relationTag = "<span class='badge' style='color:#00ffcc; border:1px solid #00ffcc;'>✨ AI推荐</span>";
+                else {
+                    const isFollowing = followingSet.has(nid), isFollower = followerSet.has(nid);
+                    if (isFollowing && isFollower) relationTag = "<span class='badge' style='color:#f59e0b; border:1px solid #f59e0b;'>🤝 互相关注</span>";
+                    else if (isFollowing) relationTag = "<span class='badge' style='color:#3b82f6; border:1px solid #3b82f6;'>👀 你的关注</span>";
+                    else if (isFollower) relationTag = "<span class='badge' style='color:#9ca3af; border:1px solid #9ca3af;'>🌟 你的粉丝</span>";
+                }
+                return `<div class="node-tooltip"><div class="name">👤 ${node.username||'User'} 【${node.community||'未知'}】 ${statusHtml} ${relationTag}</div><div class="info">${(node.info||'').replace(/,/g, '<br/>')}</div>${signatureHtml}</div>`;
             })
             .graphData({ nodes: filteredNodes, links: filteredLinks });
 
+          // 🚀 这里的 BloomPass 和 Star 背景逻辑全部照旧
           const bloomPass = new UnrealBloomPass();
-          bloomPass.threshold = 0.65;  
-          bloomPass.strength = 1.0;   
-          bloomPass.radius = 0.15;     
+          bloomPass.threshold = 0.65; bloomPass.strength = 1.0; bloomPass.radius = 0.15;     
           window.Graph.postProcessingComposer().addPass(bloomPass);
 
           const starGeometry = new THREE.BufferGeometry();
@@ -298,7 +336,7 @@
           window.addEventListener('resize', () => { window.Graph.width(window.innerWidth); window.Graph.height(window.innerHeight); });
 
           updateView();
-        });
+      });
     }
 
     // ==========================================

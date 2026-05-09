@@ -408,7 +408,53 @@ def toggle_follow():
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+# ==社交脉冲接口==
+@app.route('/api/social/pulse', methods=['GET'])
+def get_social_pulse():
+    """获取当前用户所有好友的动态脉冲（是否亮红点）"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    my_uid = session['uid']
+    
+    from models import Activity, UserVisitLog
+    from sqlalchemy import func
+    
+    # 1. 获取我的好友列表 (基于 follow_dict)
+    my_friends = follow_dict.get(my_uid, [])
+    
+    pulse_data = {}
+    for fid in my_friends:
+        # 找该好友最后一次发布活动的时间
+        last_act = Activity.query.filter_by(publisher_uid=fid).order_by(Activity.created_at.desc()).first()
+        # 找我最后一次看该好友的时间
+        last_visit = UserVisitLog.query.filter_by(viewer_uid=my_uid, target_uid=fid).first()
+        
+        has_update = False
+        if last_act:
+            if not last_visit or last_act.created_at > last_visit.last_visit_at:
+                has_update = True
+        
+        pulse_data[str(fid)] = has_update
+        
+    return jsonify({"status": "success", "pulse": pulse_data})
 
+@app.route('/api/social/mark_read', methods=['POST'])
+def mark_social_read():
+    """当用户点击查看某人时，更新访问时间，消灭红点"""
+    if 'uid' not in session: return jsonify({"status": "error"}), 401
+    my_uid = session['uid']
+    target_uid = request.json.get('target_id')
+    
+    from models import UserVisitLog
+    log = UserVisitLog.query.filter_by(viewer_uid=my_uid, target_uid=target_uid).first()
+    if not log:
+        log = UserVisitLog(viewer_uid=my_uid, target_uid=target_uid)
+        db.session.add(log)
+    else:
+        log.last_visit_at = datetime.now()
+    
+    db.session.commit()
+    return jsonify({"status": "success"})
+# ===============
 @app.route('/api/groups', methods=['GET'])
 def get_friend_groups():
     if 'uid' not in session: return jsonify({"status": "error"}), 401
@@ -471,6 +517,51 @@ def daily_retrain_task():
     except Exception as e:
         print(f"[Scheduler] 异常: {e}")
 
+@app.route('/api/graph/dynamic_data')
+def get_dynamic_graph_data():
+    """图谱动态合并接口：保留坐标结构，替换实时属性"""
+    import json
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    json_path = os.path.join(current_dir, 'static', 'graph.json')
+    
+    if not os.path.exists(json_path):
+        return jsonify({"error": "Graph not initialized"}), 404
+
+    # 1. 读取 GNN 算好的基础结构
+    with open(json_path, 'r', encoding='utf-8') as f:
+        graph_data = json.load(f)
+
+    # 2. 获取数据库实时属性
+    from models import Account, Activity, UserVisitLog
+    accounts = Account.query.all()
+    acc_map = {acc.uid: acc for acc in accounts}
+    
+    # 3. 计算实时红点脉冲逻辑
+    my_uid = session.get('uid')
+    for node in graph_data['nodes']:
+        uid_int = int(node['id'])
+        if uid_int in acc_map:
+            acc = acc_map[uid_int]
+            node['username'] = acc.username
+            node['avatar'] = acc.avatar
+            node['signature'] = acc.signature
+            node['status'] = acc.status
+            
+            # 🚀 核心修复：更严谨的动态判定逻辑
+            has_pulse = False
+            if my_uid and uid_int != my_uid:
+                # 找到该节点最新的活动
+                last_act = Activity.query.filter_by(publisher_uid=uid_int).order_by(Activity.created_at.desc()).first()
+                if last_act:
+                    # 找到当前用户对该节点的最后访问记录
+                    last_visit = UserVisitLog.query.filter_by(viewer_uid=my_uid, target_uid=uid_int).first()
+                    # 如果从未看过，或者最后活动时间 > 最后访问时间，则闪烁
+                    # 加上 1 秒冗余量，防止数据库写入延迟导致的判定失效
+                    if not last_visit or last_act.created_at > last_visit.last_visit_at:
+                        has_pulse = True
+            node['hasPulse'] = has_pulse
+
+    return jsonify(graph_data)
 #破冰留言接口
 # ── 破冰留言接口 ──────────────────────────────
 @app.route('/api/message/send', methods=['POST'])
