@@ -1,111 +1,160 @@
-<!-- START OF FILE panels/activity.html -->
 <style>
     .gnn-glow { box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.2); }
     .status-badge { backdrop-filter: blur(4px); }
 </style>
 
 <div id="panel-activity" class="panel-content hidden p-6 max-w-[1400px] mx-auto space-y-8">
-    <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
             <h2 class="text-3xl font-serif font-bold text-stone-800">组队大厅 <span class="text-amber-500 italic">Hub</span></h2>
-            <p class="text-stone-400 text-sm mt-1">GNN 驱动的跨学科组队推荐系统</p>
+            <p class="text-stone-400 text-sm mt-1">GNN 驱动的精准职能组队网络</p>
         </div>
+
+        <div id="act-filter-bar" class="hidden md:flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-stone-100">
+            <input type="text" id="filter-keyword" placeholder="搜比赛/队长/队伍/岗位技能..." class="px-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:border-amber-400 outline-none w-56">
+            <select id="filter-nature" class="px-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none">
+                <option value="">全部模式</option>
+                <option value="竞赛组队">🏆 竞赛组队</option>
+                <option value="科研项目组队">🔬 科研项目</option>
+            </select>
+            <select id="filter-direction" onchange="updateFilterCategory()" class="px-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none w-36">
+                <option value="">全部学科门类</option>
+                <option value="全学科通用顶级赛事">通用顶级赛事</option>
+                <option value="08 工学门类">08 工学门类</option>
+                <option value="07 理学门类">07 理学门类</option>
+                <option value="12 管理学门类">12 管理学门类</option>
+                <option value="02 经济学门类">02 经济学门类</option>
+                <option value="05 文学门类">05 文学门类</option>
+                <option value="13 艺术学门类">13 艺术学门类</option>
+                <option value="03 法学门类">03 法学门类</option>
+                <option value="04 教育学门类">04 教育学门类</option>
+                <option value="01 哲学门类">01 哲学门类</option>
+                <option value="06 历史学门类">06 历史学门类</option>
+                <option value="09 农学门类">09 农学门类</option>
+                <option value="10 医学门类">10 医学门类</option>
+            </select>
+            <select id="filter-category" class="px-4 py-2 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none w-40">
+                <option value="">全部具体方向</option>
+            </select>
+            <button onclick="loadActivityHall()" class="px-4 py-2 bg-stone-800 text-white rounded-xl text-sm font-bold hover:bg-amber-500 transition">筛选</button>
+        </div>
+
         <div class="flex bg-stone-200/50 p-1.5 rounded-2xl gap-1 backdrop-blur-md">
-            <button onclick="switchActivityTab('hall')" id="tab-act-hall" class="px-6 py-2.5 rounded-xl text-sm font-bold transition act-tab-active bg-white shadow-sm text-amber-700">发现项目</button>
-            <button onclick="switchActivityTab('create')" id="tab-act-create" class="px-6 py-2.5 rounded-xl text-sm font-bold transition text-stone-500 hover:text-stone-800">发起招募</button>
-            <button onclick="switchActivityTab('manage')" id="tab-act-manage" class="px-6 py-2.5 rounded-xl text-sm font-bold transition text-stone-500 hover:text-stone-800">我的管理</button>
+            <button onclick="switchActivityTab('hall')" id="tab-act-hall" class="px-5 py-2 rounded-xl text-sm font-bold transition text-center leading-tight act-tab-active bg-white shadow-sm text-amber-700">发现<br>项目</button>
+            <button onclick="switchActivityTab('create')" id="tab-act-create" class="px-5 py-2 rounded-xl text-sm font-bold transition text-center leading-tight text-stone-500 hover:text-stone-800">发起<br>招募</button>
+            <button onclick="switchActivityTab('manage')" id="tab-act-manage" class="px-5 py-2 rounded-xl text-sm font-bold transition text-center leading-tight text-stone-500 hover:text-stone-800">我的<br>管理</button>
         </div>
     </div>
 
-    <!-- 子页面 1：大厅 -->
-    <div id="act-sub-hall" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <!-- 卡片将由 JS 动态生成 -->
-    </div>
+    <div id="act-sub-hall" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
 
-    <!-- 子页面 2：发起项目 (增加高级过滤) -->
     <div id="act-sub-create" class="hidden animate-fade-in">
         <div class="card-warm p-10 rounded-[2.5rem] shadow-xl border border-stone-100 max-w-4xl mx-auto">
             <div class="flex items-center gap-4 mb-8">
                 <div class="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg shadow-amber-200">🚀</div>
                 <h3 class="text-2xl font-serif font-bold text-stone-800">创建新项目</h3>
             </div>
-            
+
             <form id="form-create-activity" class="space-y-8" onsubmit="handleCreateActivity(event)">
-                <!-- 基础信息组 -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div class="space-y-2">
-                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">项目愿景 Title</label>
-                        <input type="text" name="title" required placeholder="如：基于机器学习的校园碳中和方案" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:border-amber-400 focus:bg-white transition-all outline-none">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">队伍名称 Team Name (选填)</label>
+                        <input type="text" name="team_name" placeholder="如：摸鱼大队 (若不填将直接展示比赛名)" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:border-amber-400 focus:bg-white transition-all outline-none">
                     </div>
                     <div class="space-y-2">
-                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">活动类目 Category</label>
-                        <select name="nature" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm outline-none">
-                            <option value="学术竞赛">🏆 学术竞赛</option>
-                            <option value="保研/申请">🎓 保研/申请组队</option>
-                            <option value="创业孵化">💡 创业孵化</option>
-                            <option value="文体娱乐">🎸 文体娱乐</option>
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">组队模式 Nature</label>
+                        <select name="nature" id="create-nature" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm outline-none">
+                            <option value="竞赛组队">🏆 竞赛组队</option>
+                            <option value="科研项目组队">🔬 科研项目组队</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- 🚀 高级过滤：年级与专业 -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="space-y-3">
-                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">目标人群年级 (不选为全部)</label>
-                        <div id="target-grades" class="flex flex-wrap gap-2">
-                            <!-- 由 JS 生成 OPT_GRADES 复选框 -->
-                        </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">所属学科门类 Discipline</label>
+                        <select name="subject_direction" id="create-direction" onchange="updateCreateCategory()" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm outline-none">
+                            <option value="全学科通用顶级赛事">⭐ 全学科通用顶级赛事</option>
+                            <option value="08 工学门类">08 工学门类</option>
+                            <option value="07 理学门类">07 理学门类</option>
+                            <option value="12 管理学门类">12 管理学门类</option>
+                            <option value="02 经济学门类">02 经济学门类</option>
+                            <option value="05 文学门类">05 文学门类</option>
+                            <option value="13 艺术学门类">13 艺术学门类</option>
+                            <option value="03 法学门类">03 法学门类</option>
+                            <option value="04 教育学门类">04 教育学门类</option>
+                            <option value="01 哲学门类">01 哲学门类</option>
+                            <option value="06 历史学门类">06 历史学门类</option>
+                            <option value="09 农学门类">09 农学门类</option>
+                            <option value="10 医学门类">10 医学门类</option>
+                        </select>
                     </div>
-                    <div class="space-y-3">
-                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">倾向专业 (不选为全部)</label>
-                        <div id="target-majors" class="flex flex-wrap gap-2">
-                            <!-- 由 JS 生成 OPT_MAJORS 复选框 -->
-                        </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">具体竞赛/科研赛事 Category</label>
+                        <select name="category" id="create-category" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm outline-none"></select>
                     </div>
                 </div>
 
                 <div class="space-y-2">
-                    <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">详情描述 Description</label>
-                    <textarea name="description" rows="4" required placeholder="请详细描述你的项目目标、所需技术栈以及对队友的期待..." class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:border-amber-400 focus:bg-white transition-all outline-none resize-none"></textarea>
+                    <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">队伍介绍 Description</label>
+                    <textarea name="description" rows="3" required placeholder="请描述你的项目目标、目前进展以及总体期望..." class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm focus:border-amber-400 focus:bg-white transition-all outline-none resize-none"></textarea>
                 </div>
 
-                <!-- 底部配置 -->
-                <div class="flex flex-wrap md:flex-nowrap gap-8 items-end">
-                    <div class="w-full md:w-32 space-y-2">
-                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">招募人数</label>
-                        <input type="number" name="total_capacity" value="3" min="1" class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm">
+                <div class="space-y-4 bg-white border border-stone-100 p-6 rounded-[2rem] shadow-sm">
+                    <div class="flex justify-between items-center border-b border-stone-100 pb-4">
+                        <div>
+                            <label class="text-[12px] font-black text-stone-800 uppercase tracking-widest">招募岗位 Team Slots</label>
+                            <p class="text-xs text-stone-400 mt-1">设置你需要招募的队友岗位（队伍总容量 = 发起人 + 岗位数量）</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs font-bold text-stone-600">需要招募人数：</label>
+                            <input type="number" id="required-member-count" value="1" min="1" max="20" oninput="generateTeamSlots()" class="w-20 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-sm text-center outline-none focus:border-amber-400 font-bold shadow-sm">
+                        </div>
                     </div>
+                    <div id="slots-container" class="space-y-4 pt-2"></div>
+                </div>
+
+                <div class="flex flex-wrap md:flex-nowrap gap-8 items-end">
                     <div class="flex-1 space-y-2">
-                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">截止日期</label>
+                        <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">招募截止日期</label>
                         <input type="date" name="deadline" required class="w-full px-5 py-4 bg-stone-50 border border-stone-200 rounded-2xl text-sm">
                     </div>
                     <button type="submit" class="w-full md:w-auto px-10 py-4 bg-stone-900 text-white rounded-2xl font-bold shadow-2xl hover:bg-amber-600 transition-all transform hover:-translate-y-1">
-                        立即启动项目
+                        立即启动招募
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 子页面 3：我的管理 (模态框联动版) -->
     <div id="act-sub-manage" class="hidden space-y-12 animate-fade-in">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            <!-- 我发起的 -->
             <div class="space-y-6">
                 <div class="flex items-center justify-between border-b border-stone-200 pb-4">
-                    <h4 class="text-xl font-serif font-bold text-stone-800">我发起的项目</h4>
-                    <span class="text-[10px] font-black text-stone-400 uppercase">My Creations</span>
+                    <h4 class="text-xl font-serif font-bold text-stone-800">我发起的招募</h4>
                 </div>
                 <div id="manage-my-launched" class="space-y-4"></div>
             </div>
-            <!-- 我参与的 -->
             <div class="space-y-6">
                 <div class="flex items-center justify-between border-b border-stone-200 pb-4">
-                    <h4 class="text-xl font-serif font-bold text-stone-800">我加入的/申请中</h4>
-                    <span class="text-[10px] font-black text-stone-400 uppercase">Participating</span>
+                    <h4 class="text-xl font-serif font-bold text-stone-800">我正在申请的</h4>
                 </div>
                 <div id="manage-my-joined" class="space-y-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reassignSlotModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999999; align-items: center; justify-content: center;">
+        <div class="bg-white w-[400px] rounded-[2rem] p-8 shadow-2xl animate-fade-in flex flex-col gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-xl font-bold">⚠️</div>
+                <h3 class="text-xl font-bold text-stone-800">岗位发生冲突</h3>
+            </div>
+            <p class="text-sm text-stone-500 leading-relaxed">该成员申请的岗位已被其他人占用。<br>如果您仍想同意其加入，请为其分配一个<strong class="text-amber-600">空缺岗位</strong>：</p>
+            <select id="reassign-slot-select" class="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-amber-400 font-bold text-stone-700"></select>
+            <div class="flex justify-end gap-3 mt-4">
+                <button onclick="closeReassignModal()" class="px-5 py-2.5 bg-stone-100 text-stone-500 rounded-xl text-sm font-bold hover:bg-stone-200 transition">放弃调整</button>
+                <button id="confirm-reassign-btn" class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition shadow-sm">分配并同意加入</button>
             </div>
         </div>
     </div>
