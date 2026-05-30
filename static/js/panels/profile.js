@@ -21,6 +21,7 @@ window.loadProfile = async function() {
     try {
         const res = await fetch(`/user?id=${State.user.uid}&t=${Date.now()}`);
         const data = await res.json();
+        window.currentProfileInfo = data.student_info || "";
         
         // 1. 同步顶部基础信息
         document.getElementById('profileUid').innerText = State.user.uid;
@@ -58,7 +59,17 @@ window.saveProfile = async function() {
     const signature = document.getElementById('prof-signature').value.trim();
     const status = document.getElementById('prof-status').value;
     
-    const info = `性别:${document.getElementById('prof-gender').value},年级:${document.getElementById('prof-grade').value},专业:${document.getElementById('prof-major').value},爱好:${Array.from(document.querySelectorAll('input[name="prof_hobbies"]:checked')).map(n => n.value).join(' ')},标签:${Array.from(document.querySelectorAll('input[name="prof_tags"]:checked')).map(n => n.value).join(' ')}`;
+    const preservedProfileParts = (window.currentProfileInfo || "")
+        .split(',')
+        .filter(p => p.startsWith('画像分:') || p.startsWith('社交倾向:') || p.startsWith('自述:'));
+    const info = [
+        `性别:${document.getElementById('prof-gender').value}`,
+        `年级:${document.getElementById('prof-grade').value}`,
+        `专业:${document.getElementById('prof-major').value}`,
+        `爱好:${Array.from(document.querySelectorAll('input[name="prof_hobbies"]:checked')).map(n => n.value).join(' ')}`,
+        `标签:${Array.from(document.querySelectorAll('input[name="prof_tags"]:checked')).map(n => n.value).join(' ')}`,
+        ...preservedProfileParts
+    ].join(',');
 
     try {
         const res = await fetch('/api/user/update', {

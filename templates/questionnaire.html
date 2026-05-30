@@ -1,0 +1,55 @@
+<!-- PAGE: 独立画像问卷 -->
+<div id="page-questionnaire" class="page min-h-screen bg-stone-950 text-white">
+    <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_10%,rgba(245,158,11,0.18),transparent_30%),radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.12),transparent_28%)]"></div>
+    <div class="relative min-h-screen flex items-center justify-center px-5 py-10">
+        <div class="w-full max-w-4xl">
+            <div class="mb-6 flex items-center justify-between gap-4">
+                <button onclick="skipQuestionnaire()" class="px-4 py-2 rounded-full border border-white/15 text-white/60 hover:text-white hover:bg-white/10 text-sm transition">
+                    返回
+                </button>
+                <div class="text-right">
+                    <p class="text-[10px] uppercase tracking-[0.3em] text-amber-300/70">Profile Survey</p>
+                    <p id="questionnaireSummary" class="text-xs text-white/45 mt-1">尚未记录画像因子</p>
+                </div>
+            </div>
+
+            <div class="rounded-[2rem] border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-2xl overflow-hidden">
+                <div class="p-6 md:p-8 border-b border-white/10">
+                    <div class="flex items-center justify-between gap-4 mb-5">
+                        <div class="h-2 flex-1 rounded-full bg-white/10 overflow-hidden">
+                            <div id="questionnaireProgressBar" class="h-full w-0 bg-amber-500 transition-all duration-300"></div>
+                        </div>
+                        <span id="questionnaireProgressText" class="text-xs text-white/45 font-mono">1 / 1</span>
+                    </div>
+                    <h1 id="questionnaireTitle" class="text-2xl md:text-4xl font-serif font-bold leading-tight">画像问卷</h1>
+                    <p id="questionnaireHint" class="text-sm text-white/45 mt-3 leading-relaxed">选择最接近你的真实情况即可。</p>
+                </div>
+
+                <div class="p-6 md:p-8">
+                    <div id="questionnaireBody"></div>
+
+                    <div class="mt-8">
+                        <label class="block text-xs font-bold text-white/45 mb-2 uppercase tracking-widest">补充描述 (选填)</label>
+                        <textarea id="questionnaireNote" maxlength="80" rows="3" placeholder="例如：想找考研搭子、希望认识同专业朋友、偏好安静自习等" class="w-full px-4 py-3 rounded-2xl bg-black/20 border border-white/10 text-white/80 placeholder:text-white/25 text-sm outline-none focus:border-amber-400 resize-none"></textarea>
+                    </div>
+
+                    <div class="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between">
+                        <button id="questionnairePrevBtn" onclick="prevQuestionnaireStep()" class="px-5 py-3 rounded-xl border border-white/15 text-white/60 hover:text-white hover:bg-white/10 text-sm font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed">
+                            上一题
+                        </button>
+                        <div class="flex gap-3">
+                            <button onclick="skipQuestionnaire()" class="px-5 py-3 rounded-xl text-white/50 hover:text-white hover:bg-white/10 text-sm font-semibold transition">
+                                稍后再填
+                            </button>
+                            <button id="questionnaireNextBtn" onclick="nextQuestionnaireStep()" class="px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-sm font-bold transition shadow-lg shadow-amber-500/20">
+                                下一题
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="mt-5 text-center text-xs text-white/35">问卷会根据前序选择动态出现后续问题，结果将转成画像分用于好友推荐。</p>
+        </div>
+    </div>
+</div>

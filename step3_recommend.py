@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import pandas as pd
 import os
 import sqlite3
+import re
 
 print(" 启动时序图推荐推理引擎...")
 
@@ -59,6 +60,42 @@ def get_following(user_id):
     """获取用户的关注列表"""
     return follow_dict.get(user_id, [])
 
+PROFILE_SCORE_ORDER = ["社交", "协作", "学习", "开放", "沟通", "作息"]
+
+def parse_profile_scores(info_str):
+    """从 users.info 中解析问卷画像分，返回 6 维向量。缺失时返回 None。"""
+    if not info_str or "画像分:" not in str(info_str):
+        return None
+    match = re.search(r"画像分:([^,]+)", str(info_str))
+    if not match:
+        return None
+    score_map = {}
+    for item in match.group(1).split("|"):
+        m = re.match(r"([\u4e00-\u9fa5]+)(\d+)", item.strip())
+        if m:
+            score_map[m.group(1)] = float(m.group(2))
+    if not all(key in score_map for key in PROFILE_SCORE_ORDER):
+        return None
+    return torch.tensor([score_map[key] for key in PROFILE_SCORE_ORDER], dtype=torch.float)
+
+def get_profile_similarity(user_id, target_id):
+    """计算两个用户的画像分余弦相似度，归一化到 0-100。"""
+    source_vec = parse_profile_scores(user_info_map.get(user_id, ""))
+    target_vec = parse_profile_scores(user_info_map.get(target_id, ""))
+    if source_vec is None or target_vec is None:
+        return 50.0
+    sim = F.cosine_similarity(source_vec.unsqueeze(0), target_vec.unsqueeze(0)).item()
+    return max(0.0, min(100.0, sim * 100))
+
+def get_social_bonus(user_id, target_id):
+    """基于社交图给候选人加成：共同关注越多，排序越靠前。"""
+    user_following = set(follow_dict.get(user_id, []))
+    target_following = set(follow_dict.get(target_id, []))
+    common_count = len(user_following & target_following)
+    if common_count <= 0:
+        return 0.0
+    return min(100.0, 40.0 + common_count * 15.0)
+
 # 3. 核心推荐算法
 COMMUNITY_RULES = {
     "运动健将圈": [
@@ -106,6 +143,7 @@ def recommend_friends(user_id, top_k=5, mode="social", community=None):
     sorted_scores, sorted_indices = torch.sort(similarity, descending=True)
     
     candidate_ids = []
+    candidate_gnn_scores = {}
     
     for idx in sorted_indices.tolist():
         rid = idx + 1
@@ -122,37 +160,32 @@ def recommend_friends(user_id, top_k=5, mode="social", community=None):
         # ================================================
         
         candidate_ids.append(rid)
+        candidate_gnn_scores[rid] = float(similarity[idx].item())
         
         # 取足够多的候选人用于后续社交网络模式的过滤，避免过滤完数量不够
-        if len(candidate_ids) >= top_k + 20: 
+        if len(candidate_ids) >= top_k + 80: 
             break
 
     # 获取当前用户的关注列表（两种模式都需要用来过滤）
     user_following = follow_dict.get(user_id, [])
+    filtered_candidates = [rid for rid in candidate_ids if rid not in user_following]
 
-    # ================= 模式分支逻辑 =================
-    if mode == "gnn":
-        # 纯相似度模式也要过滤掉已关注的人
-        return [rid for rid in candidate_ids if rid not in user_following][:top_k]
+    ranked_candidates = []
+    for rid in filtered_candidates:
+        # GNN cosine 范围约为 -1~1，转成 0~100 后便于和画像分合成。
+        gnn_score = (candidate_gnn_scores.get(rid, 0.0) + 1.0) * 50.0
+        profile_score = get_profile_similarity(user_id, rid)
+        social_bonus = get_social_bonus(user_id, rid)
 
-    # 模式 B: 社交网络优化模式
-    final_rec = []
+        if mode == "gnn":
+            final_score = gnn_score * 0.80 + profile_score * 0.20
+        else:
+            final_score = gnn_score * 0.60 + profile_score * 0.25 + social_bonus * 0.15
 
-    for rid in candidate_ids:
-        if rid in user_following:
-            continue
-        rid_following = follow_dict.get(rid, [])
-        common_following = set(user_following) & set(rid_following)
-        
-        if len(common_following) > 0:
-            final_rec.append(rid)
-            if len(final_rec) >= top_k:
-                return final_rec
+        ranked_candidates.append((rid, final_score, gnn_score, profile_score, social_bonus))
 
-    # 补充剩余的
-    remaining = [rid for rid in candidate_ids if rid not in final_rec and rid not in user_following]
-    final_rec.extend(remaining)
-    return final_rec[:top_k]
+    ranked_candidates.sort(key=lambda item: item[1], reverse=True)
+    return [rid for rid, *_ in ranked_candidates[:top_k]]
 # 4. 测试
 if __name__ == "__main__":
     while True:

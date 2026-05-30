@@ -125,7 +125,7 @@ window.doAdminRetrain = async function() {
 // ==========================================
 //  路由初始化
 // ==========================================
-const PAGES = { '/': 'page-landing', '/auth': 'page-auth', '/dashboard': 'page-dashboard' };
+const PAGES = { '/': 'page-landing', '/auth': 'page-auth', '/questionnaire': 'page-questionnaire', '/dashboard': 'page-dashboard' };
 window.Router = {
     go(path, replace = false) {
         if (path === '/dashboard' && !State.user) path = '/auth';
@@ -143,6 +143,9 @@ window.Router = {
         requestAnimationFrame(() => {
             const tEl = document.getElementById(targetId);
             if (tEl) tEl.classList.add('active');
+            if (path === '/questionnaire' && typeof renderQuestionnairePage === 'function') {
+                renderQuestionnairePage();
+            }
             if (path === '/dashboard' && State.user) {
                 syncMySocialState().then(() => switchMenu('recommend'));
             }
@@ -150,7 +153,7 @@ window.Router = {
     },
     init() {
         window.addEventListener('popstate', e => this._render(e.state?.path || '/'));
-        this._render('/');
+        this._render(location.pathname || '/');
     }
 };
 

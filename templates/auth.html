@@ -1,7 +1,7 @@
 <!-- 注册属性选择弹窗 (Modal - 默认隐藏) -->
 <div id="registrationOptionsModal" class="fixed inset-0 z-[100] hidden bg-black/80 backdrop-blur-sm">
     <div class="min-h-screen flex items-center justify-center p-4 md:px-6 md:py-12">
-        <div class="glass-card rounded-3xl w-full max-w-md max-h-[90vh] md:max-h-[85vh] overflow-y-auto custom-scroll">
+        <div class="glass-card rounded-3xl w-full max-w-3xl max-h-[90vh] md:max-h-[85vh] overflow-y-auto custom-scroll">
             <div class="p-5 md:p-6">
                 <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
                     <h2 class="text-white font-serif font-bold text-xl tracking-wide">完善个人信息</h2>
@@ -31,6 +31,15 @@
                     <div>
                         <label class="text-amber-400/80 text-xs mb-2 block font-medium">个性标签 (可多选)</label>
                         <div id="reg-tags-options" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                    <div class="pt-5 border-t border-white/10">
+                        <div class="flex items-center justify-between gap-4 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
+                            <div>
+                                <p class="text-white font-semibold text-sm">画像问卷 (可选)</p>
+                                <p id="reg-questionnaire-status" class="text-white/45 text-[11px] mt-1">可选填写，用于提升初始推荐质量</p>
+                            </div>
+                            <button id="reg-questionnaire-btn" type="button" onclick="openQuestionnaire('register')" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold transition">填写画像问卷</button>
+                        </div>
                     </div>
                 </div>
 
@@ -101,6 +110,9 @@
                     </div>
                     <p id="reg-error" class="text-xs text-red-300 hidden text-center"></p>
                     
+                    <button onclick="openQuestionnaire('register')" class="w-full mt-2 border border-amber-300/30 bg-amber-400/10 hover:bg-amber-400/20 text-amber-100 font-bold py-3 rounded-xl text-sm transition">
+                        填写画像问卷 (可选)
+                    </button>
                     <button onclick="showRegistrationOptions()" class="w-full mt-2 bg-white hover:bg-amber-50 text-stone-800 font-bold py-3.5 rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2">
                         <span>下一步：完善资料</span>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
