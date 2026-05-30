@@ -208,12 +208,156 @@ def get_social_report():
 # ==========================================
 # 认证与用户管理 API
 # ==========================================
+QUESTION_SCORE_RULES = {
+    "social_scene": {
+        "one_on_one": {"scores": {"social": 35, "openness": 45, "communication": 70}, "label": "一对一慢热"},
+        "small_group": {"scores": {"social": 60, "openness": 65, "collaboration": 65}, "label": "小群体活动"},
+        "public_event": {"scores": {"social": 85, "openness": 80, "collaboration": 60}, "label": "公开活动型"},
+    },
+    "team_role": {
+        "leader": {"scores": {"social": 75, "collaboration": 85, "learning": 65}, "label": "组织推进"},
+        "specialist": {"scores": {"collaboration": 70, "learning": 85, "communication": 55}, "label": "专业攻坚"},
+        "supporter": {"scores": {"collaboration": 80, "communication": 70, "learning": 55}, "label": "稳定补位"},
+    },
+    "study_drive": {
+        "competition": {"scores": {"learning": 90, "collaboration": 75, "openness": 60}, "label": "竞赛科研"},
+        "daily_study": {"scores": {"learning": 70, "collaboration": 65, "schedule": 70}, "label": "课程互助"},
+        "life_friend": {"scores": {"social": 75, "openness": 70, "communication": 70}, "label": "生活兴趣"},
+    },
+    "schedule": {
+        "morning": {"scores": {"schedule": 90, "learning": 65}, "label": "早睡早起"},
+        "stable": {"scores": {"schedule": 70, "communication": 65}, "label": "规律在线"},
+        "night": {"scores": {"schedule": 35, "openness": 60, "learning": 60}, "label": "夜间活跃"},
+    },
+    "conflict_style": {
+        "direct": {"scores": {"communication": 80, "collaboration": 70}, "label": "直接沟通"},
+        "balance": {"scores": {"communication": 75, "collaboration": 85}, "label": "协调折中"},
+        "avoid": {"scores": {"communication": 50, "collaboration": 55, "social": 35}, "label": "低冲突慢调"},
+    },
+    "introvert_contact": {
+        "text_first": {"scores": {"communication": 75, "social": 35}, "label": "文字破冰"},
+        "common_task": {"scores": {"collaboration": 75, "learning": 65}, "label": "任务破冰"},
+        "friend_intro": {"scores": {"social": 45, "communication": 65}, "label": "熟人介绍"},
+    },
+    "event_preference": {
+        "sports": {"scores": {"social": 80, "openness": 75}, "label": "运动户外"},
+        "workshop": {"scores": {"learning": 80, "collaboration": 75}, "label": "技术共创"},
+        "culture": {"scores": {"openness": 80, "communication": 70}, "label": "文艺兴趣"},
+    },
+}
+
+SCORE_KEYS = ["social", "collaboration", "learning", "openness", "communication", "schedule"]
+DERIVED_PROFILE_TAGS = {
+    "社交牛逼症", "社恐星人", "社交普通型", "温和", "技术大牛", "早睡早起", "熬夜的神", "镇圈大佬"
+}
+
+def build_questionnaire_profile(questionnaire):
+    """把注册问卷答案转换为可检索的画像字段和推荐标签。"""
+    questionnaire = questionnaire or {}
+    answered_keys = [k for k, v in questionnaire.items() if k != "self_description" and v not in (None, "")]
+    if not answered_keys:
+        return [], [], {key: 50 for key in SCORE_KEYS}
+
+    totals = {k: [] for k in SCORE_KEYS}
+    preference_labels = []
+
+    for question_id, options in QUESTION_SCORE_RULES.items():
+        answer = questionnaire.get(question_id)
+        rule = options.get(answer)
+        if not rule:
+            continue
+        preference_labels.append(rule["label"])
+        for key, score in rule["scores"].items():
+            if key in totals:
+                totals[key].append(score)
+
+    try:
+        activity_radius = int(questionnaire.get("activity_radius", 3))
+    except (TypeError, ValueError):
+        activity_radius = 3
+    radius_score = max(1, min(activity_radius, 5)) * 20
+    totals["openness"].append(radius_score)
+    totals["social"].append(30 + radius_score * 0.6)
+
+    scores = {
+        key: int(round(sum(values) / len(values))) if values else 50
+        for key, values in totals.items()
+    }
+
+    derived_tags = []
+    if scores["social"] >= 75:
+        derived_tags.append("社交牛逼症")
+    elif scores["social"] <= 45:
+        derived_tags.append("社恐星人")
+    else:
+        derived_tags.append("社交普通型")
+    if scores["collaboration"] >= 75:
+        derived_tags.append("温和")
+    if scores["learning"] >= 75:
+        derived_tags.append("技术大牛")
+    if scores["schedule"] >= 80:
+        derived_tags.append("早睡早起")
+    elif scores["schedule"] <= 45:
+        derived_tags.append("熬夜的神")
+    if scores["openness"] >= 75:
+        derived_tags.append("镇圈大佬")
+
+    score_text = "|".join([
+        f"社交{scores['social']}",
+        f"协作{scores['collaboration']}",
+        f"学习{scores['learning']}",
+        f"开放{scores['openness']}",
+        f"沟通{scores['communication']}",
+        f"作息{scores['schedule']}",
+    ])
+    preference_text = " ".join(preference_labels[:5]) or "未填写"
+    self_description = str(questionnaire.get("self_description", "")).replace(",", "，").strip()[:80]
+
+    info_parts = [
+        f"画像分:{score_text}",
+        f"社交倾向:{preference_text}",
+    ]
+    if self_description:
+        info_parts.append(f"自述:{self_description}")
+
+    return info_parts, derived_tags, scores
+
+def merge_questionnaire_profile_info(info, questionnaire_parts, derived_tags):
+    parts = [p for p in (info or "").split(",") if p]
+    filtered = [
+        p for p in parts
+        if not (p.startswith("画像分:") or p.startswith("社交倾向:") or p.startswith("自述:"))
+    ]
+
+    tag_index = next((i for i, p in enumerate(filtered) if p.startswith("标签:")), None)
+    if tag_index is None:
+        filtered.append(f"标签:{' '.join(dict.fromkeys(derived_tags)) or '萌新'}")
+    else:
+        existing_tags = [
+            tag for tag in filtered[tag_index].split(":", 1)[1].split()
+            if tag not in DERIVED_PROFILE_TAGS
+        ]
+        merged_tags = " ".join(dict.fromkeys(existing_tags + derived_tags))
+        filtered[tag_index] = f"标签:{merged_tags or '萌新'}"
+
+    return ",".join(filtered + questionnaire_parts)
+
 @app.route('/api/register', methods=['POST'])
 def api_register():
     data = request.get_json()
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
-    info = data.get('info', f"性别:{data.get('gender', '未知')},年级:{data.get('grade', '大一')},专业:{data.get('major', '未知')},爱好:{data.get('hobbies', '无')},标签:{data.get('tags', '萌新')}")
+    questionnaire_parts, derived_tags, profile_scores = build_questionnaire_profile(data.get('questionnaire'))
+    raw_tags = data.get('tags', '萌新')
+    merged_tags = " ".join(dict.fromkeys((raw_tags.split() if raw_tags else []) + derived_tags))
+    info = data.get('info', ",".join([
+        f"性别:{data.get('gender', '未知')}",
+        f"年级:{data.get('grade', '大一')}",
+        f"专业:{data.get('major', '未知')}",
+        f"爱好:{data.get('hobbies', '无')}",
+        f"标签:{merged_tags or '萌新'}",
+        *questionnaire_parts,
+    ]))
 
     if not username or not password:
         return jsonify({"status": "error", "message": "账号和密码不能为空"}), 400
@@ -234,10 +378,38 @@ def api_register():
         db.session.commit()
         user_info_map[new_uid] = info
         user_name_map[new_uid] = username
-        return jsonify({"status": "success", "message": "注册成功", "data": {"uid": new_uid, "username": username, "info": info}}), 201
+        return jsonify({"status": "success", "message": "注册成功", "data": {"uid": new_uid, "username": username, "info": info, "profile_scores": profile_scores}}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": f"注册失败: {str(e)}"}), 500
+
+@app.route('/api/questionnaire/update', methods=['POST'])
+def update_questionnaire_profile():
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+
+    uid = session['uid']
+    data = request.get_json() or {}
+    questionnaire_parts, derived_tags, profile_scores = build_questionnaire_profile(data.get('questionnaire'))
+
+    try:
+        u_info = UserInfo.query.get(uid)
+        old_info = u_info.info if u_info else ""
+        new_info = merge_questionnaire_profile_info(old_info, questionnaire_parts, derived_tags)
+        if u_info:
+            u_info.info = new_info
+        else:
+            db.session.add(UserInfo(uid=uid, info=new_info))
+        db.session.commit()
+        user_info_map[uid] = new_info
+        return jsonify({
+            "status": "success",
+            "message": "画像问卷已更新",
+            "data": {"info": new_info, "profile_scores": profile_scores}
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
@@ -631,5 +803,5 @@ if __name__ == "__main__":
     scheduler.add_job(func=daily_retrain_task, trigger="cron", hour=3, minute=0)
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
         scheduler.start()
-        print("[System] ⏰ 后台定时重训系统已启动，每天凌晨 03:00 将自动执行。")
+        print("[System] 后台定时重训系统已启动，每天凌晨 03:00 将自动执行。")
     app.run(host="0.0.0.0", port=5001, debug=True)
