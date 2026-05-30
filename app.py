@@ -42,6 +42,29 @@ with app.app_context():
         cursor.execute('PRAGMA synchronous=NORMAL')
         cursor.close()
     db.create_all()
+    # 迁移：移除 messages 表的唯一约束（破冰留言 → 私聊）
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        if 'messages' in inspector.get_table_names():
+            # 检查是否存在旧约束（表级 UNIQUE CONSTRAINT，非索引）
+            constraints = inspector.get_unique_constraints('messages')
+            has_unique = any(c['name'] == 'uq_sender_receiver' for c in constraints)
+            if has_unique:
+                print("[Migrate] 检测到旧版破冰留言约束，正在迁移为私聊模式...")
+                with db.engine.connect() as conn:
+                    # 清理上次可能失败的残留
+                    conn.execute(text("DROP TABLE IF EXISTS messages_new"))
+                    conn.execute(text("CREATE TABLE messages_new (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id INTEGER NOT NULL, receiver_id INTEGER NOT NULL, content TEXT NOT NULL, is_read BOOLEAN DEFAULT 0 NOT NULL, created_at DATETIME NOT NULL)"))
+                    conn.execute(text("INSERT INTO messages_new (id, sender_id, receiver_id, content, is_read, created_at) SELECT id, sender_id, receiver_id, content, is_read, created_at FROM messages"))
+                    conn.execute(text("DROP TABLE messages"))
+                    conn.execute(text("ALTER TABLE messages_new RENAME TO messages"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_sender_id ON messages (sender_id)"))
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_receiver_id ON messages (receiver_id)"))
+                    conn.commit()
+                print("[Migrate] 迁移完成：已支持无限次私聊。")
+    except Exception as e:
+        print(f"[Migrate] 迁移提示: {e}")
     accounts = Account.query.all()
     for acc in accounts:
         user_name_map[acc.uid] = acc.username
@@ -734,8 +757,8 @@ def get_dynamic_graph_data():
             node['hasPulse'] = has_pulse
 
     return jsonify(graph_data)
-#破冰留言接口
-# ── 破冰留言接口 ──────────────────────────────
+#私聊接口
+# ── 私聊接口 ──────────────────────────────
 @app.route('/api/message/send', methods=['POST'])
 def send_message():
     if 'uid' not in session:
@@ -744,31 +767,28 @@ def send_message():
     data = request.get_json() or {}
     receiver_id = data.get('receiver_id')
     content = (data.get('content') or '').strip()
-    
+
     if not receiver_id or not content:
         return jsonify({"status": "error", "message": "参数不完整"}), 400
     if len(content) > 500:
-        return jsonify({"status": "error", "message": "留言不能超过500字"}), 400
-        
+        return jsonify({"status": "error", "message": "消息不能超过500字"}), 400
+
     sender_id = session['uid']
     if sender_id == int(receiver_id):
-        return jsonify({"status": "error", "message": "不能给自己留言"}), 400
-        
-    # 检查是否已留言过
-    exists = Message.query.filter_by(sender_id=sender_id, receiver_id=int(receiver_id)).first()
-    if exists:
-        return jsonify({"status": "error", "message": "你已经给该用户留过言了"}), 403
-        
+        return jsonify({"status": "error", "message": "不能给自己发消息"}), 400
+
     try:
         msg = Message(sender_id=sender_id, receiver_id=int(receiver_id),
                       content=content, created_at=datetime.utcnow())
         db.session.add(msg)
         db.session.commit()
-        return jsonify({"status": "success", "message": "留言发送成功"}), 200
+        return jsonify({"status": "success", "message": "消息发送成功", "data": {
+            "id": msg.id,
+            "content": msg.content,
+            "created_at": msg.created_at.strftime('%Y-%m-%d %H:%M')
+        }}), 200
     except Exception as e:
         db.session.rollback()
-        if 'UNIQUE' in str(e).upper():
-            return jsonify({"status": "error", "message": "你已经给该用户留过言了"}), 403
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -776,26 +796,94 @@ def send_message():
 def get_inbox():
     if 'uid' not in session:
         return jsonify({"status": "error", "message": "请先登录"}), 401
-    receiver_id = session['uid']
-    msgs = Message.query.filter_by(receiver_id=receiver_id).order_by(Message.created_at.desc()).all()
+    my_uid = session['uid']
+
+    # 查询所有与我相关的消息（我发的 + 我收的）
+    from sqlalchemy import or_, and_
+    all_msgs = Message.query.filter(
+        or_(Message.sender_id == my_uid, Message.receiver_id == my_uid)
+    ).order_by(Message.created_at.asc()).all()
+
+    # 按对话伙伴分组
+    conversations = {}  # key: partner_uid
+    for m in all_msgs:
+        partner_id = m.receiver_id if m.sender_id == my_uid else m.sender_id
+        if partner_id not in conversations:
+            conversations[partner_id] = {
+                "partner_id": partner_id,
+                "last_message": m.content,
+                "last_time": m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else "",
+                "unread_count": 0,
+            }
+        else:
+            conversations[partner_id]["last_message"] = m.content
+            conversations[partner_id]["last_time"] = m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else ""
+
+        # 统计对方发来且未读的消息数
+        if m.sender_id == partner_id and not m.is_read:
+            conversations[partner_id]["unread_count"] += 1
+
+    # 转换为列表，按最后消息时间倒序
     result = []
-    for m in msgs:
-        sender_acc = Account.query.get(m.sender_id)
-        avatar_url = f'/api/user/avatar/{m.sender_id}' if (sender_acc and sender_acc.avatar) else None
+    for partner_id, conv in conversations.items():
+        partner_acc = Account.query.get(partner_id)
         result.append({
-            "message_id": m.id,
-            "sender_id": m.sender_id,
-            "sender_name": sender_acc.username if sender_acc else f"用户{m.sender_id}",
-            "avatar": avatar_url,
-            "content": m.content,
-            "created_at": m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else "",
-            "is_read": m.is_read
+            "partner_id": partner_id,
+            "partner_name": partner_acc.username if partner_acc else f"用户{partner_id}",
+            "avatar": f'/api/user/avatar/{partner_id}' if (partner_acc and partner_acc.avatar) else None,
+            "last_message": conv["last_message"][:50] + ("..." if len(conv["last_message"]) > 50 else ""),
+            "last_time": conv["last_time"],
+            "unread_count": conv["unread_count"],
         })
-        # 标记为已读
-        if not m.is_read:
-            m.is_read = True
-    db.session.commit()
+
+    result.sort(key=lambda x: x["last_time"], reverse=True)
     return jsonify({"status": "success", "data": result}), 200
+
+@app.route('/api/message/conversation', methods=['GET'])
+def get_conversation():
+    """获取当前用户与指定用户的完整对话记录"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "请先登录"}), 401
+    my_uid = session['uid']
+    partner_id = request.args.get('with', type=int)
+    if not partner_id:
+        return jsonify({"status": "error", "message": "缺少对话伙伴ID"}), 400
+
+    from sqlalchemy import or_
+    msgs = Message.query.filter(
+        or_(
+            (Message.sender_id == my_uid) & (Message.receiver_id == partner_id),
+            (Message.sender_id == partner_id) & (Message.receiver_id == my_uid)
+        )
+    ).order_by(Message.created_at.asc()).all()
+
+    # 将对方发来的消息标记为已读
+    unread_ids = [m.id for m in msgs if m.sender_id == partner_id and not m.is_read]
+    if unread_ids:
+        from sqlalchemy import update as sql_update
+        db.session.execute(
+            sql_update(Message).where(Message.id.in_(unread_ids)).values(is_read=True)
+        )
+        db.session.commit()
+
+    partner_acc = Account.query.get(partner_id)
+    messages = [{
+        "id": m.id,
+        "sender_id": m.sender_id,
+        "content": m.content,
+        "created_at": m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else "",
+        "is_mine": m.sender_id == my_uid,
+    } for m in msgs]
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "partner_id": partner_id,
+            "partner_name": partner_acc.username if partner_acc else f"用户{partner_id}",
+            "avatar": f'/api/user/avatar/{partner_id}' if (partner_acc and partner_acc.avatar) else None,
+            "messages": messages,
+        }
+    }), 200
 # ─────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -100,15 +100,15 @@
                 </div>
                 <div id="messageSenderWrap" class="mt-6 hidden">
                     <div id="msgSenderInput" class="space-y-3">
-                        <h4 class="text-[10px] font-bold text-stone-400 uppercase tracking-widest flex items-center gap-1.5"><span>💌</span> 留言</h4>
+                        <h4 class="text-[10px] font-bold text-stone-400 uppercase tracking-widest flex items-center gap-1.5"><span>💬</span> 私聊</h4>
                         <div class="relative">
-                            <textarea id="msgContent" maxlength="500" placeholder="说句破冰的话吧...最多500字" rows="3" class="w-full px-4 py-3 rounded-2xl text-sm text-stone-700 placeholder-stone-300 resize-none outline-none transition bg-white/60 backdrop-blur border border-stone-200 focus:border-amber-300 focus:ring-2 focus:ring-amber-100"></textarea>
+                            <textarea id="msgContent" maxlength="500" placeholder="发送私聊消息...最多500字" rows="3" class="w-full px-4 py-3 rounded-2xl text-sm text-stone-700 placeholder-stone-300 resize-none outline-none transition bg-white/60 backdrop-blur border border-stone-200 focus:border-amber-300 focus:ring-2 focus:ring-amber-100"></textarea>
                             <span id="msgCharCount" class="absolute bottom-2.5 right-3 text-[10px] text-stone-300">0/500</span>
                         </div>
-                        <button id="msgSendBtn" onclick="MessageSender.send()" class="w-full py-2.5 rounded-xl text-sm font-semibold transition bg-stone-900 hover:bg-stone-700 text-white shadow-sm active:scale-[.98]">发送留言</button>
+                        <button id="msgSendBtn" onclick="ChatManager.send()" class="w-full py-2.5 rounded-xl text-sm font-semibold transition bg-stone-900 hover:bg-stone-700 text-white shadow-sm active:scale-[.98]">发送</button>
                     </div>
                     <div id="msgSenderDone" class="hidden flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-stone-50 border border-stone-100">
-                        <span class="text-base">✉️</span><span class="text-sm text-stone-400 font-medium">已发送留言</span>
+                        <span class="text-base">✉️</span><span class="text-sm text-stone-400 font-medium">已发送消息</span>
                     </div>
                 </div>
             </div>

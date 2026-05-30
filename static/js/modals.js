@@ -102,7 +102,7 @@ window.openUserModal = async function(explicitId) {
         
         document.getElementById('modalFollowBtnContainer').innerHTML = getFollowButtonHTML(sid);
 
-        if (window.MessageSender) window.MessageSender.mount(sid);
+        if (window.ChatManager) window.ChatManager.mount(sid);
         
     } catch(e) {
         console.error("加载用户信息失败", e);

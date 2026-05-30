@@ -1,6 +1,7 @@
 <div id="panel-inbox" class="panel-content hidden p-4 md:p-6 max-w-3xl mx-auto">
-    <div class="flex items-center justify-between mb-6">
-        <h2 class="text-2xl font-serif font-bold text-stone-800">💌 收件箱</h2>
+    <!-- 顶部标题栏 -->
+    <div class="flex items-center justify-between mb-6" id="inboxHeader">
+        <h2 class="text-2xl font-serif font-bold text-stone-800">💬 私聊</h2>
         <button onclick="InboxView.load()" class="text-xs text-stone-400 hover:text-amber-600 transition flex items-center gap-1">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             刷新
@@ -10,7 +11,7 @@
     <!-- 加载中 -->
     <div id="inboxLoading" class="flex flex-col items-center justify-center py-20 text-stone-300">
         <div class="w-8 h-8 border-2 border-amber-300 border-t-transparent rounded-full animate-spin mb-3"></div>
-        <p class="text-sm">正在加载留言...</p>
+        <p class="text-sm">正在加载会话...</p>
     </div>
 
     <!-- 空状态 -->
@@ -18,10 +19,36 @@
         <svg class="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
         </svg>
-        <p class="text-base font-medium text-stone-400">暂无留言</p>
-        <p class="text-sm mt-1 text-stone-300">快去探索新朋友吧 ✨</p>
+        <p class="text-base font-medium text-stone-400">暂无会话</p>
+        <p class="text-sm mt-1 text-stone-300">去好友列表找人聊聊天吧 💬</p>
     </div>
 
-    <!-- 留言列表 -->
-    <div id="inboxList" class="hidden space-y-4"></div>
+    <!-- 会话列表 -->
+    <div id="inboxConvList" class="hidden space-y-3"></div>
+
+    <!-- 聊天窗口 -->
+    <div id="inboxChatView" class="hidden flex flex-col" style="height: calc(90vh - 120px);">
+        <!-- 聊天顶部 -->
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-stone-100">
+            <button onclick="InboxView.backToList()" class="text-stone-400 hover:text-amber-600 transition flex items-center gap-1 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                返回
+            </button>
+            <span id="chatPartnerName" class="font-semibold text-stone-800 text-sm">---</span>
+            <div class="w-12"></div> <!-- 居中占位 -->
+        </div>
+
+        <!-- 消息列表 -->
+        <div id="chatMessages" class="flex-1 overflow-y-auto px-1 space-y-1 scrollbar-thin"></div>
+
+        <!-- 发送区域 -->
+        <div class="mt-3 pt-3 border-t border-stone-100 flex items-end gap-2">
+            <textarea id="chatInput" maxlength="500" placeholder="输入消息... (Enter发送)" rows="1"
+                class="flex-1 px-4 py-2.5 rounded-2xl text-sm text-stone-700 placeholder-stone-300 resize-none outline-none transition bg-stone-50 border border-stone-200 focus:border-amber-300 focus:ring-2 focus:ring-amber-100"></textarea>
+            <button id="chatSendBtn" onclick="InboxView.sendInChat()"
+                class="shrink-0 px-4 py-2.5 rounded-xl text-sm font-semibold bg-stone-900 hover:bg-stone-700 text-white shadow-sm active:scale-[.98] transition">
+                发送
+            </button>
+        </div>
+    </div>
 </div>

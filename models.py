@@ -32,7 +32,7 @@ class FriendMapping(db.Model):
     target_uid = db.Column(db.Integer, nullable=False)
     group_id = db.Column(db.Integer, nullable=False)
 
-# 4. 破冰留言模型
+# 4. 私聊消息模型
 class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -41,7 +41,6 @@ class Message(db.Model):
     content = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False)
-    __table_args__ = (db.UniqueConstraint('sender_id', 'receiver_id', name='uq_sender_receiver'),)
 
 # 5. 聊天历史模型
 class ChatHistory(db.Model):
