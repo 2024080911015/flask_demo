@@ -67,7 +67,8 @@ def serialize_activity(act, my_uid):
             "status": p.status,
             "is_initiator": p.is_initiator,
             "apply_msg": p.apply_msg,
-            "applied_slot_index": p.applied_slot_index
+            "applied_slot_index": p.applied_slot_index,
+            "invited_by": p.invited_by
         }
         members.append(member_info)
         if p.uid == my_uid: my_status = p.status
@@ -390,6 +391,188 @@ def quit_activity():
             send_notification(captain_uid, uid, f"你已离开【{competition_name}】（{team_name}）。")
 
         return jsonify({"status": "success", "message": "已成功退出/取消申请"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ── 🆕 组队邀请接口 ──────────────────────────────
+@activity_bp.route('/api/activity/invite', methods=['POST'])
+def invite_to_activity():
+    """队长邀请用户加入队伍"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+    inviter_uid = session['uid']
+    data = request.json
+    act_id = data.get('activity_id')
+    target_uid = data.get('target_uid')
+    slot_index = data.get('slot_index')
+    message = (data.get('message') or '').strip()
+
+    if not act_id or not target_uid:
+        return jsonify({"status": "error", "message": "参数不完整"}), 400
+
+    act = Activity.query.get(act_id)
+    if not act:
+        return jsonify({"status": "error", "message": "活动不存在"}), 404
+    if act.publisher_uid != inviter_uid:
+        return jsonify({"status": "error", "message": "只有发起人可以邀请成员"}), 403
+
+    # 检查是否已有记录
+    existing = ActivityParticipant.query.filter_by(activity_id=act_id, uid=target_uid).first()
+    if existing:
+        return jsonify({"status": "error", "message": "该用户已在队伍中或已被邀请"}), 400
+
+    # 互斥检测：被邀请者不能已加入同比赛的其他队伍
+    if act.category:
+        joined_same = db.session.query(ActivityParticipant).join(
+            Activity, ActivityParticipant.activity_id == Activity.id
+        ).filter(
+            ActivityParticipant.uid == target_uid,
+            ActivityParticipant.status == 1,
+            Activity.category == act.category
+        ).first()
+        if joined_same:
+            return jsonify({"status": "error", "message": "该用户已加入同比赛的其他队伍"}), 400
+
+    try:
+        db.session.add(ActivityParticipant(
+            activity_id=act_id, uid=target_uid, is_initiator=False,
+            status=0, apply_msg=message, applied_slot_index=slot_index,
+            invited_by=inviter_uid
+        ))
+
+        # 发送通知给被邀请者（在 commit 之前发送，确保一起提交）
+        team_name = act.title or "未命名队伍"
+        comp_name = act.category or act.nature
+        sender = Account.query.get(inviter_uid)
+        inviter_name = sender.username if sender else "某队长"
+        notify_msg = f"🔔 {inviter_name} 邀请你加入【{comp_name}】（{team_name}），去组队大厅看看吧！"
+        send_notification(inviter_uid, target_uid, notify_msg)
+
+        db.session.commit()
+
+        return jsonify({"status": "success", "message": "邀请已发送"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@activity_bp.route('/api/activity/my_invitations', methods=['GET'])
+def get_my_invitations():
+    """获取我收到的组队邀请"""
+    if 'uid' not in session:
+        return jsonify({"status": "error"}), 401
+    my_uid = session['uid']
+
+    invited_records = db.session.query(ActivityParticipant, Activity).join(
+        Activity, ActivityParticipant.activity_id == Activity.id
+    ).filter(
+        ActivityParticipant.uid == my_uid,
+        ActivityParticipant.invited_by.isnot(None),
+        ActivityParticipant.status == 0  # 待处理
+    ).order_by(ActivityParticipant.id.desc()).all()
+
+    result = []
+    for part, act in invited_records:
+        inviter = Account.query.get(part.invited_by)
+        result.append({
+            "participant_id": part.id,
+            "activity_id": act.id,
+            "activity_title": act.category or act.nature,
+            "team_name": act.title or "未命名队伍",
+            "nature": act.nature,
+            "deadline": act.deadline,
+            "inviter_uid": part.invited_by,
+            "inviter_name": inviter.username if inviter else f"用户{part.invited_by}",
+            "slot_index": part.applied_slot_index,
+            "message": part.apply_msg or "",
+            "created_at": act.created_at.strftime('%Y-%m-%d %H:%M') if act.created_at else ""
+        })
+
+    return jsonify({"status": "success", "data": result})
+
+
+@activity_bp.route('/api/activity/invitation/respond', methods=['POST'])
+def respond_invitation():
+    """接受或拒绝组队邀请"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+    my_uid = session['uid']
+    data = request.json
+    act_id = data.get('activity_id')
+    action = data.get('action')  # 'accept' or 'reject'
+
+    if not act_id or action not in ('accept', 'reject'):
+        return jsonify({"status": "error", "message": "参数不完整"}), 400
+
+    part = ActivityParticipant.query.filter_by(activity_id=act_id, uid=my_uid).filter(ActivityParticipant.invited_by.isnot(None)).first()
+    if not part:
+        return jsonify({"status": "error", "message": "未找到邀请记录"}), 404
+
+    act = Activity.query.get(act_id)
+    captain_uid = act.publisher_uid if act else None
+
+    try:
+        if action == 'accept':
+            # 检查岗位冲突
+            target_slot = part.applied_slot_index
+            conflict = ActivityParticipant.query.filter_by(
+                activity_id=act_id, applied_slot_index=target_slot, status=1
+            ).first() if target_slot is not None else None
+
+            if conflict and conflict.uid != my_uid:
+                # 岗位已被占用，尝试分配空岗位
+                slots = json.loads(act.team_slots) if act.team_slots else []
+                filled = set(
+                    p.applied_slot_index for p in ActivityParticipant.query.filter_by(
+                        activity_id=act_id, status=1
+                    ).all() if p.applied_slot_index is not None
+                )
+                reassigned = False
+                for i in range(len(slots)):
+                    if i not in filled:
+                        part.applied_slot_index = i
+                        reassigned = True
+                        break
+                if not reassigned:
+                    return jsonify({"status": "error", "message": "队伍已满，无法加入"}), 400
+
+            part.status = 1
+            # 清理同比赛其他队伍的待处理记录
+            if act and act.category:
+                others = db.session.query(ActivityParticipant).join(
+                    Activity, ActivityParticipant.activity_id == Activity.id
+                ).filter(
+                    ActivityParticipant.uid == my_uid,
+                    ActivityParticipant.status.in_([0]),
+                    Activity.id != act_id,
+                    Activity.category == act.category
+                ).all()
+                for o in others:
+                    db.session.delete(o)
+
+            # 先发送通知，再提交
+            user = Account.query.get(my_uid)
+            username = user.username if user else "某用户"
+            comp_name = act.category if act else "未知比赛"
+            team_name = act.title if act else "未命名队伍"
+            send_notification(my_uid, captain_uid, f"{username} 接受了你的组队邀请，已加入【{comp_name}】（{team_name}）！")
+
+            db.session.commit()
+            return jsonify({"status": "success", "message": "已接受邀请，成功加入队伍！"})
+        else:
+            # 拒绝
+            part.status = 2
+            # 先发送通知，再提交
+            user = Account.query.get(my_uid)
+            username = user.username if user else "某用户"
+            comp_name = act.category if act else "未知比赛"
+            team_name = act.title if act else "未命名队伍"
+            send_notification(my_uid, captain_uid, f"{username} 婉拒了你的组队邀请【{comp_name}】（{team_name}）。")
+
+            db.session.commit()
+            return jsonify({"status": "success", "message": "已拒绝邀请"})
     except Exception as e:
         db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500

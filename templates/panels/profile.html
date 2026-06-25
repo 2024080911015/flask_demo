@@ -34,6 +34,21 @@
                     <p class="mt-2 text-sm font-mono text-amber-600">UID: #<span id="profileUid"></span></p>
                 </div>
             </div>
+
+            <!-- 🆕 技能标签展示 -->
+            <div class="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
+                <p class="text-[10px] font-bold text-blue-500 uppercase mb-3">🛠 技能标签 Skill Tags</p>
+                <div id="prof-skills-display" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- 🆕 竞赛经历展示 -->
+            <div class="bg-white p-5 rounded-2xl border border-stone-100">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="text-[10px] font-bold text-stone-400 uppercase">🏆 竞赛经历 Competition</p>
+                </div>
+                <div id="prof-comp-list" class="space-y-2"></div>
+            </div>
+
             <button onclick="toggleProfileEdit(true)" class="w-full py-3 border-2 border-stone-100 text-stone-600 rounded-xl text-sm font-bold hover:bg-stone-50 transition">
                 📝 修改个人资料
             </button>
@@ -92,6 +107,31 @@
                 <label class="block text-xs font-bold text-stone-500 mb-2 uppercase">爱好 & 标签</label>
                 <div id="prof-hobbies-container" class="mb-2"></div>
                 <div id="prof-tags-container"></div>
+            </div>
+
+            <!-- 🆕 技能标签编辑 -->
+            <div>
+                <label class="block text-xs font-bold text-blue-500 mb-2 uppercase">🛠 技能标签 (影响AI匹配)</label>
+                <div id="prof-skills-container"></div>
+            </div>
+
+            <!-- 🆕 竞赛经历新增表单 -->
+            <div class="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 space-y-4">
+                <label class="block text-xs font-bold text-amber-600 uppercase">🏆 添加竞赛经历</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="comp-name" placeholder="竞赛名称 (如：全国大学生数学建模竞赛)" class="w-full px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:border-amber-400">
+                    <input type="text" id="comp-year" placeholder="参赛年份 (如：2025)" class="w-full px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:border-amber-400">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <select id="comp-role" class="w-full px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none">
+                        <option value="队员">队员</option>
+                        <option value="队长">队长</option>
+                        <option value="核心成员">核心成员</option>
+                        <option value="独立参赛">独立参赛</option>
+                    </select>
+                    <input type="text" id="comp-desc" placeholder="一句话描述 (选填)" class="w-full px-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm outline-none focus:border-amber-400">
+                </div>
+                <button type="button" onclick="addCompetition()" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-sm font-bold transition shadow-sm">添加竞赛经历</button>
             </div>
 
             <div class="flex gap-4 pt-4">

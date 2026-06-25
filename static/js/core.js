@@ -60,7 +60,7 @@ window.syncMySocialState = async function() {
 //  通用工具函数 (多面板复用)
 // ==========================================
 window.parseInfoTags = function(infoStr, isDark = false) {
-    let basic = '', hobbies = '';
+    let basic = '', hobbies = '', skills = '';
     (infoStr || "").split(',').forEach(p => {
         if(!p.includes(':')) return;
         const [key, value] = p.split(':');
@@ -68,12 +68,15 @@ window.parseInfoTags = function(infoStr, isDark = false) {
         if (key === '爱好' || key === '标签') {
             const cls = isDark ? 'bg-white/15 text-white/80' : 'bg-[#f5f0e8] text-[#7a5c38]';
             hobbies += value.split(' ').filter(t => t.trim()).map(t => `<span class="px-2 py-0.5 ${cls} rounded-full text-[10px] font-medium">${t}</span>`).join('');
+        } else if (key === '技能') {
+            const cls = isDark ? 'bg-blue-400/20 text-blue-200' : 'bg-blue-50 text-blue-700 border border-blue-200';
+            skills += value.split(' ').filter(t => t.trim()).map(t => `<span class="px-2.5 py-1 ${cls} rounded-full text-[10px] font-bold">🛠 ${t}</span>`).join('');
         } else {
             const cls = isDark ? 'bg-white/20 text-white' : 'bg-[#fdf3e3] text-[#92714a]';
             basic += `<span class="px-2.5 py-1 ${cls} rounded-full text-xs font-semibold">${value}</span>`;
         }
     });
-    return { basic, hobbies };
+    return { basic, hobbies, skills };
 };
 
 window.getFollowButtonHTML = function(targetId) {

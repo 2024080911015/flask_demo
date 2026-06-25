@@ -77,6 +77,18 @@ class ActivityParticipant(db.Model):
     status = db.Column(db.Integer, default=0) # 0-申请中, 1-已通过, 2-已拒绝
     apply_msg = db.Column(db.String(255), nullable=True)
     applied_slot_index = db.Column(db.Integer, nullable=True) # ✨ 记录申请的具体岗位索引
+    invited_by = db.Column(db.Integer, nullable=True, default=None)  # 🆕 邀请人uid（NULL=主动申请）
+
+# 8. 竞赛经历模型
+class CompetitionExperience(db.Model):
+    __tablename__ = 'competition_experiences'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    uid = db.Column(db.Integer, nullable=False, index=True)
+    competition_name = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(100), nullable=False, default='队员')
+    year = db.Column(db.String(20), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
 
 # 8. 社交足迹
 class UserVisitLog(db.Model):

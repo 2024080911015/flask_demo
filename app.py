@@ -9,7 +9,7 @@ from step3_recommend import COMMUNITY_RULES
 from t_plus_1_scheduler import run_pipeline
 
 # 引入拆分出来的模块
-from models import db, Account, UserInfo, FriendGroup, FriendMapping, ChatHistory, Message
+from models import db, Account, UserInfo, FriendGroup, FriendMapping, ChatHistory, Message, CompetitionExperience
 from agent_api import agent_bp
 
 from activity_api import activity_bp
@@ -63,6 +63,17 @@ with app.app_context():
                     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_receiver_id ON messages (receiver_id)"))
                     conn.commit()
                 print("[Migrate] 迁移完成：已支持无限次私聊。")
+        # 迁移：为 activity_participants 添加 invited_by 列（组队邀请功能）
+        try:
+            cols = [c['name'] for c in inspector.get_columns('activity_participants')]
+            if 'invited_by' not in cols:
+                print("[Migrate] 检测到缺少 invited_by 列，正在添加...")
+                with db.engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE activity_participants ADD COLUMN invited_by INTEGER DEFAULT NULL"))
+                    conn.commit()
+                print("[Migrate] invited_by 列添加完成。")
+        except Exception as e:
+            print(f"[Migrate] invited_by 迁移提示: {e}")
     except Exception as e:
         print(f"[Migrate] 迁移提示: {e}")
     accounts = Account.query.all()
@@ -379,6 +390,7 @@ def api_register():
         f"专业:{data.get('major', '未知')}",
         f"爱好:{data.get('hobbies', '无')}",
         f"标签:{merged_tags or '萌新'}",
+        f"技能:{data.get('skills', '')}",
         *questionnaire_parts,
     ]))
 
@@ -563,6 +575,93 @@ def upload_avatar():
 def get_user_avatar(uid):
     account = Account.query.get(uid)
     return jsonify({"status": "success", "avatar": account.avatar if account else None})
+
+# ==========================================
+# 🆕 竞赛经历管理 API
+# ==========================================
+@app.route('/api/user/competitions', methods=['GET'])
+def get_user_competitions():
+    """获取用户竞赛经历（含历史经历 + 当前参与的活动）"""
+    uid = request.args.get('uid', type=int)
+    if not uid:
+        return jsonify({"status": "error", "message": "缺少uid参数"}), 400
+
+    # 1. 手动添加的竞赛经历
+    experiences = CompetitionExperience.query.filter_by(uid=uid).order_by(CompetitionExperience.created_at.desc()).all()
+    exp_list = [{
+        "id": e.id,
+        "type": "experience",
+        "competition_name": e.competition_name,
+        "role": e.role,
+        "year": e.year,
+        "description": e.description
+    } for e in experiences]
+
+    # 2. 当前正在参与的活动（status=1 且不是发起人）
+    from models import ActivityParticipant, Activity
+    current_parts = db.session.query(ActivityParticipant, Activity).join(
+        Activity, ActivityParticipant.activity_id == Activity.id
+    ).filter(
+        ActivityParticipant.uid == uid,
+        ActivityParticipant.status == 1,
+        ActivityParticipant.is_initiator == False
+    ).all()
+
+    for part, act in current_parts:
+        exp_list.append({
+            "id": act.id,
+            "type": "ongoing",
+            "competition_name": act.category or act.title or "未知比赛",
+            "role": "队员",
+            "year": act.deadline[:4] if act.deadline else "进行中",
+            "description": f"参与 {act.publisher_uid} 发起的项目"
+        })
+
+    return jsonify({"status": "success", "data": exp_list})
+
+@app.route('/api/user/competitions', methods=['POST'])
+def add_competition_experience():
+    """添加竞赛经历"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+    uid = session['uid']
+    data = request.get_json() or {}
+    name = (data.get('competition_name') or '').strip()
+    role = (data.get('role') or '队员').strip()
+    year = (data.get('year') or '').strip()
+    desc = (data.get('description') or '').strip()
+
+    if not name or not year:
+        return jsonify({"status": "error", "message": "竞赛名称和年份不能为空"}), 400
+    if len(name) > 200:
+        return jsonify({"status": "error", "message": "竞赛名称过长"}), 400
+
+    try:
+        exp = CompetitionExperience(uid=uid, competition_name=name, role=role, year=year, description=desc)
+        db.session.add(exp)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "竞赛经历已添加", "data": {"id": exp.id}}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/user/competitions/<int:exp_id>', methods=['DELETE'])
+def delete_competition_experience(exp_id):
+    """删除竞赛经历"""
+    if 'uid' not in session:
+        return jsonify({"status": "error", "message": "未登录"}), 401
+    exp = CompetitionExperience.query.get(exp_id)
+    if not exp:
+        return jsonify({"status": "error", "message": "记录不存在"}), 404
+    if exp.uid != session['uid']:
+        return jsonify({"status": "error", "message": "无权删除他人经历"}), 403
+    try:
+        db.session.delete(exp)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "已删除"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
 # 管理员 API & 社交互动 API
@@ -892,4 +991,4 @@ if __name__ == "__main__":
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
         scheduler.start()
         print("[System] 后台定时重训系统已启动，每天凌晨 03:00 将自动执行。")
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5002, debug=True, use_reloader=False)

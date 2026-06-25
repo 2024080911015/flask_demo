@@ -66,11 +66,20 @@ window.openUserModal = async function(explicitId) {
     document.getElementById('modalConnCount').innerText = '-';
     document.getElementById('modalDominantComm').innerText = '-';
     document.getElementById('modalFollowBtnContainer').innerHTML = '';
-    
+
+    // 重置新增区块
+    const skillsSection = document.getElementById('modalSkillsSection');
+    const compSection = document.getElementById('modalCompSection');
+    const inviteSection = document.getElementById('modalInviteSection');
+    if (skillsSection) skillsSection.classList.add('hidden');
+    if (compSection) compSection.classList.add('hidden');
+    if (inviteSection) inviteSection.classList.add('hidden');
+
     try {
-        const [r1, r2] = await Promise.all([
-            fetch(`/user?id=${sid}&t=${Date.now()}`), 
-            fetch(`/social/report?id=${sid}&t=${Date.now()}`)
+        const [r1, r2, r3] = await Promise.all([
+            fetch(`/user?id=${sid}&t=${Date.now()}`),
+            fetch(`/social/report?id=${sid}&t=${Date.now()}`),
+            fetch(`/api/user/competitions?uid=${sid}&t=${Date.now()}`)
         ]);
         
         if(!r1.ok) throw new Error();
@@ -96,10 +105,55 @@ window.openUserModal = async function(explicitId) {
         const t = parseInfoTags(uData.student_info);
         document.getElementById('modalBasicInfo').innerHTML = t.basic;
         document.getElementById('modalHobbiesInfo').innerHTML = t.hobbies;
-        
+
+        // 🆕 技能标签展示
+        if (t.skills && skillsSection) {
+            document.getElementById('modalSkillsTags').innerHTML = t.skills;
+            skillsSection.classList.remove('hidden');
+        } else if (skillsSection) {
+            skillsSection.classList.add('hidden');
+        }
+
+        // 🆕 竞赛经历展示
+        const cData = await r3.json();
+        if (cData.data && cData.data.length > 0 && compSection) {
+            document.getElementById('modalCompList').innerHTML = cData.data.map(c => `
+                <div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-stone-100 shadow-sm">
+                    <div class="w-8 h-8 rounded-lg ${c.type === 'ongoing' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center text-xs font-bold shrink-0">${c.type === 'ongoing' ? '🚀' : '🏆'}</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold text-stone-700 truncate">${c.competition_name}</p>
+                        <p class="text-xs text-stone-400">${c.role} · ${c.year}${c.description ? ' · ' + c.description : ''}</p>
+                    </div>
+                </div>
+            `).join('');
+            compSection.classList.remove('hidden');
+        } else if (compSection) {
+            compSection.classList.add('hidden');
+        }
+
+        // 🆕 邀请组队按钮（仅当当前用户有发起的活动时显示）
+        if (inviteSection && State.user && String(sid) !== String(State.user.uid)) {
+            try {
+                const myRes = await fetch('/api/activity/my');
+                const myData = await myRes.json();
+                const myLaunched = (myData.launched || []).filter(a => a.my_status !== 2);
+                if (myLaunched.length > 0) {
+                    inviteSection.classList.remove('hidden');
+                    const inviteBtn = document.getElementById('modalInviteBtn');
+                    if (inviteBtn) {
+                        inviteBtn.replaceWith(inviteBtn.cloneNode(true));  // 清除旧事件
+                        const newBtn = document.getElementById('modalInviteBtn');
+                        newBtn.addEventListener('click', function() {
+                            showInvitePopup(sid, myLaunched);
+                        });
+                    }
+                }
+            } catch(e) { console.error('加载邀请按钮失败', e); }
+        }
+
         document.getElementById('modalConnCount').innerText = rData.status.total_connections;
         document.getElementById('modalDominantComm').innerText = rData.distribution.length > 0 ? rData.distribution[0].name : "暂无";
-        
+
         document.getElementById('modalFollowBtnContainer').innerHTML = getFollowButtonHTML(sid);
 
         if (window.ChatManager) window.ChatManager.mount(sid);
@@ -208,4 +262,154 @@ window.closeSocialDrawer = () => {
 
 window.closeUserModal = function() {
     document.getElementById('userProfileModal').classList.add('hidden');
+};
+
+// 🆕 组队邀请弹窗
+let _inviteTargetUid = null;
+window.showInvitePopup = function(targetUid, myActivities) {
+    _inviteTargetUid = parseInt(targetUid);
+    if (!myActivities || myActivities.length === 0) {
+        alert('没有可邀请的队伍');
+        return;
+    }
+
+    // 创建或获取邀请弹窗
+    let popup = document.getElementById('invitePopup');
+    if (!popup) {
+        popup = document.createElement('div');
+        popup.id = 'invitePopup';
+        popup.className = 'fixed inset-0 z-[99999] hidden flex items-center justify-center bg-stone-900/80 backdrop-blur-md';
+        popup.innerHTML = `
+            <div class="bg-white rounded-[2rem] w-full max-w-md max-h-[80vh] overflow-hidden shadow-2xl flex flex-col animate-scale-in">
+                <div class="p-6 pb-4 flex justify-between items-center border-b border-stone-100">
+                    <h3 class="text-xl font-serif font-bold text-stone-800">邀请组队</h3>
+                    <button onclick="closeInvitePopup()" class="w-8 h-8 flex items-center justify-center bg-stone-50 text-stone-400 hover:text-red-500 rounded-full transition text-lg leading-none">x</button>
+                </div>
+                <div class="flex-1 overflow-y-auto px-6 py-4 space-y-3 custom-scroll" id="invitePopupBody"></div>
+                <div class="p-6 pt-2 border-t border-stone-100">
+                    <button id="inviteSubmitBtn" class="w-full py-3 bg-stone-900 text-white rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>请先选择一个队伍</button>
+                </div>
+            </div>`;
+        document.body.appendChild(popup);
+        // 点击遮罩关闭
+        popup.addEventListener('click', function(e) {
+            if (e.target === popup) closeInvitePopup();
+        });
+    }
+
+    // 每次打开都重新绑定事件
+    popup._selectedActId = null;
+    popup._selectedSlot = null;
+
+    const body = document.getElementById('invitePopupBody');
+    body.innerHTML = '';
+    myActivities.forEach(act => {
+        const hasEmptySlots = (act.team_slots || []).some(s => !s.is_filled);
+        const actDiv = document.createElement('div');
+        actDiv.className = 'p-4 rounded-2xl border border-stone-200 bg-stone-50 cursor-pointer hover:border-amber-300 transition act-option';
+        actDiv.innerHTML = `
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="font-bold text-stone-800 text-sm">${act.category || act.nature}</p>
+                    <p class="text-xs text-stone-400">${act.title || '未命名队伍'} · ${act.member_count}/${act.total_capacity}席</p>
+                </div>
+                <span class="text-[10px] text-stone-300 select-indicator">选择</span>
+            </div>`;
+
+        // 岗位列表
+        const slotsDiv = document.createElement('div');
+        slotsDiv.className = 'slots-container hidden mt-2';
+        (act.team_slots || []).forEach(slot => {
+            const slotBtn = document.createElement('div');
+            if (slot.is_filled) {
+                slotBtn.className = 'p-2.5 rounded-xl border border-stone-200 text-xs opacity-50 ml-6 mt-1';
+                slotBtn.innerHTML = '已满 ' + (slot.index + 1) + '号: ' + slot.role + ' (' + slot.major_required + ') <span class="text-red-400 ml-1">已满</span>';
+            } else {
+                slotBtn.className = 'p-2.5 rounded-xl border border-stone-200 text-xs cursor-pointer hover:border-amber-400 hover:bg-amber-50 ml-6 mt-1 slot-option';
+                slotBtn.innerHTML = '空缺 ' + (slot.index + 1) + '号: ' + slot.role + ' (' + slot.major_required + ') <span class="text-emerald-500 ml-1">空缺</span>';
+                slotBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    document.querySelectorAll('#invitePopupBody .slot-option').forEach(s => {
+                        s.classList.remove('border-amber-400', 'bg-amber-50', 'font-bold');
+                    });
+                    slotBtn.classList.add('border-amber-400', 'bg-amber-50', 'font-bold');
+                    popup._selectedSlot = slot.index;
+                    popup._selectedActId = act.id;
+                    document.getElementById('inviteSubmitBtn').textContent = '发送邀请';
+                    document.getElementById('inviteSubmitBtn').disabled = false;
+                });
+            }
+            slotsDiv.appendChild(slotBtn);
+        });
+        actDiv.appendChild(slotsDiv);
+
+        actDiv.addEventListener('click', function() {
+            document.querySelectorAll('#invitePopupBody .act-option').forEach(a => {
+                a.classList.remove('border-amber-400', 'bg-amber-50');
+                a.querySelector('.select-indicator').textContent = '选择';
+            });
+            document.querySelectorAll('#invitePopupBody .slots-container').forEach(s => s.classList.add('hidden'));
+            actDiv.classList.add('border-amber-400', 'bg-amber-50');
+            actDiv.querySelector('.select-indicator').textContent = '已选';
+            slotsDiv.classList.remove('hidden');
+            popup._selectedActId = act.id;
+            popup._selectedSlot = null;
+            document.getElementById('inviteSubmitBtn').textContent = '请选择具体岗位';
+            document.getElementById('inviteSubmitBtn').disabled = true;
+        });
+
+        body.appendChild(actDiv);
+    });
+
+    // 设置发送按钮
+    const submitBtn = document.getElementById('inviteSubmitBtn');
+    submitBtn.onclick = async function() {
+        const actId = popup._selectedActId;
+        const slot = popup._selectedSlot;
+        const target = _inviteTargetUid;
+
+        if (actId === null || slot === null || !target) {
+            alert('请先选择队伍和岗位');
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '发送中...';
+        try {
+            const res = await fetch('/api/activity/invite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    activity_id: actId,
+                    target_uid: target,
+                    slot_index: slot,
+                    message: '队长邀请你加入队伍！'
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                alert('邀请已发送！对方将收到站内通知。');
+                closeInvitePopup();
+            } else {
+                alert(data.message || '发送失败');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '发送邀请';
+            }
+        } catch (e) {
+            alert('网络错误，请重试');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '发送邀请';
+        }
+    };
+
+    popup.classList.remove('hidden');
+    popup.style.display = 'flex';
+};
+
+window.closeInvitePopup = function() {
+    const popup = document.getElementById('invitePopup');
+    if (popup) {
+        popup.classList.add('hidden');
+        popup.style.display = 'none';
+    }
+    _inviteTargetUid = null;
 };

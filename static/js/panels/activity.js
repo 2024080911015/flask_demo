@@ -517,16 +517,20 @@ window.renderAuditList = function(act) {
 
     pending.forEach(m => {
         const slotIdx = m.applied_slot_index;
-        const slotName = (slotIdx !== null && act.team_slots && act.team_slots[slotIdx]) 
+        const slotName = (slotIdx !== null && act.team_slots && act.team_slots[slotIdx])
             ? `${slotIdx + 1}号岗位 [${act.team_slots[slotIdx].role}]` : '未知岗位';
-            
+        const isInvited = m.invited_by != null;
+        const badgeHtml = isInvited
+            ? '<span class="px-1.5 py-0.5 bg-blue-100 text-blue-600 text-[9px] font-bold rounded ml-1">你邀请的</span>'
+            : '';
+
         list.innerHTML += `
-        <div class="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm space-y-3">
+        <div class="bg-white p-4 rounded-2xl border ${isInvited ? 'border-blue-200' : 'border-amber-100'} shadow-sm space-y-3">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3 cursor-pointer hover:opacity-75 transition" onclick="if(window.openUserModal) window.openUserModal(${m.uid})">
                     <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-700 text-xs">${m.username.charAt(0)}</div>
                     <div class="flex flex-col">
-                        <span class="text-sm font-bold text-stone-800">${m.username}</span>
+                        <span class="text-sm font-bold text-stone-800">${m.username}${badgeHtml}</span>
                         <span class="text-[10px] text-amber-600 font-bold">意向: ${slotName}</span>
                     </div>
                 </div>
@@ -674,12 +678,14 @@ window.handleCancelActivity = async function(actId) {
         const res = await fetch('/api/activity/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ activity_id: actId }) });
         const data = await res.json();
         if (data.status === 'success') {
-            if(typeof Toast !== 'undefined') Toast.success("项目已撤回");
+            if(typeof Toast !== 'undefined') Toast.success("项目已撤回"); else alert("项目已撤回");
             closeActivityDetail();
             loadActivityHall();
             loadManagement();
+        } else {
+            if(typeof Toast !== 'undefined') Toast.error(data.message || "撤回失败"); else alert("撤回失败: " + (data.message || "未知错误"));
         }
-    } catch (e) {}
+    } catch (e) { alert("撤回请求失败，请检查网络"); }
 };
 
 window.handleQuitActivity = async function(actId) {
@@ -699,16 +705,25 @@ window.handleQuitActivity = async function(actId) {
 window.loadManagement = async function() {
     const launchedContainer = document.getElementById('manage-my-launched');
     const joinedContainer = document.getElementById('manage-my-joined');
+    const inviteContainer = document.getElementById('manage-my-invitations');
     if (!launchedContainer || !joinedContainer) return;
 
     try {
+        // 核心数据：已发起 + 已加入的项目（必须成功）
         const res = await fetch('/api/activity/my');
         const data = await res.json();
+
+        // 收到的邀请（可选，失败不影响主要功能）
+        let invData = { data: [] };
+        try {
+            const invRes = await fetch('/api/activity/my_invitations');
+            if (invRes.ok) invData = await invRes.json();
+        } catch(e) { console.warn('加载邀请列表失败', e); }
 
         launchedContainer.innerHTML = '';
         if (data.launched.length === 0) { launchedContainer.innerHTML = '<div class="col-span-full py-10 text-center text-stone-300 border-2 border-dashed border-stone-100 rounded-[2rem]">你还没有发起过任何项目</div>'; }
         data.launched.forEach(act => {
-            const pendingCount = act.members ? act.members.filter(m => m.status === 0).length : 0;
+            const pendingCount = act.members ? act.members.filter(m => m.status === 0 && !m.invited_by).length : 0;
             launchedContainer.innerHTML += `
             <div class="card-warm p-6 rounded-[2rem] border border-stone-100 shadow-sm hover:shadow-md transition-all cursor-pointer group" onclick="openActivityDetail(${act.id})">
                 <div class="flex justify-between items-start mb-4">
@@ -736,6 +751,56 @@ window.loadManagement = async function() {
                 <span class="text-xs font-bold ${statusColor}">${statusMap[act.my_status]}</span>
             </div>`;
         });
+
+        // 🆕 收到的邀请
+        if (inviteContainer) {
+            inviteContainer.innerHTML = '';
+            if (!invData.data || invData.data.length === 0) {
+                inviteContainer.innerHTML = '<div class="col-span-full py-10 text-center text-stone-300 border-2 border-dashed border-stone-100 rounded-[2rem]">暂无收到的组队邀请</div>';
+            } else {
+                invData.data.forEach(inv => {
+                    inviteContainer.innerHTML += `
+                    <div class="card-warm p-5 rounded-[2rem] border border-amber-200 bg-amber-50/50 shadow-sm">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-[10px] font-black text-amber-600 uppercase tracking-widest bg-amber-100 px-2 py-0.5 rounded-lg">📨 邀请</span>
+                                    <span class="text-xs text-stone-400">来自</span>
+                                    <span class="text-sm font-bold text-stone-800 cursor-pointer hover:text-amber-600" onclick="if(window.openUserModal)window.openUserModal(${inv.inviter_uid})">${inv.inviter_name}</span>
+                                </div>
+                                <h5 class="font-bold text-stone-700 mt-1">${inv.activity_title}</h5>
+                                <p class="text-xs text-stone-400">${inv.team_name} · 截止 ${inv.deadline}</p>
+                                ${inv.message ? `<p class="text-xs text-stone-500 italic mt-1">“${inv.message}”</p>` : ''}
+                            </div>
+                            <div class="flex gap-2 shrink-0">
+                                <button onclick="respondInvite(${inv.activity_id}, 'accept'); event.stopPropagation();" class="px-4 py-2 bg-emerald-500 text-white text-xs font-bold rounded-xl hover:bg-emerald-600 transition shadow-sm">接受</button>
+                                <button onclick="respondInvite(${inv.activity_id}, 'reject'); event.stopPropagation();" class="px-4 py-2 bg-stone-100 text-stone-500 text-xs font-bold rounded-xl hover:bg-red-50 hover:text-red-500 transition">拒绝</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+        }
     } catch(e) { }
-}
+};
+
+// 🆕 响应邀请
+window.respondInvite = async function(actId, action) {
+    if (action === 'reject' && !confirm('确定拒绝该邀请吗？')) return;
+    try {
+        const res = await fetch('/api/activity/invitation/respond', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activity_id: actId, action })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            if(typeof Toast !== 'undefined') Toast.success(data.message); else alert(data.message);
+            loadManagement();
+            loadActivityHall();
+        } else {
+            if(typeof Toast !== 'undefined') Toast.error(data.message); else alert(data.message);
+        }
+    } catch (e) { alert('操作失败'); }
+};
 // END OF FILE
