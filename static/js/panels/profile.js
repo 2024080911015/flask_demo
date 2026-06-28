@@ -32,6 +32,15 @@ window.loadProfile = async function() {
         document.getElementById('prof-display-name').innerText = data.username;
         document.getElementById('prof-display-signature').innerText = data.signature || "未设置签名";
         document.getElementById('prof-display-status').innerText = data.status || "找朋友";
+        const profileAvatar = document.getElementById('profileAvatar');
+        const profileInitial = (data.username || 'U').charAt(0).toUpperCase();
+        if (profileAvatar) {
+            profileAvatar.style.backgroundImage = 'none';
+            profileAvatar.style.backgroundColor = '#fef3c7';
+            profileAvatar.style.color = '#b45309';
+            profileAvatar.innerText = profileInitial;
+            State.loadAvatar(State.user.uid, 'profileAvatar', true, profileInitial);
+        }
 
         // 2. 处理标签展示
         const tags = parseInfoTags(data.student_info);

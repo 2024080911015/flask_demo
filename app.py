@@ -30,7 +30,8 @@ app.register_blueprint(activity_bp)
 # ==========================================
 # 初始化全局变量与内存数据
 # ==========================================
-user_name_map = {} 
+user_name_map = {}
+user_info_map = {}
 with app.app_context():
     # SQLite 性能优化：启用 WAL 模式 + 忙等待超时
     from sqlalchemy import event
@@ -46,6 +47,25 @@ with app.app_context():
     try:
         from sqlalchemy import inspect, text
         inspector = inspect(db.engine)
+        if 'users' in inspector.get_table_names():
+            try:
+                with db.engine.connect() as conn:
+                    duplicate_count = conn.execute(text(
+                        "SELECT COUNT(*) FROM ("
+                        "SELECT uid FROM users WHERE uid IS NOT NULL "
+                        "GROUP BY uid HAVING COUNT(*) > 1)"
+                    )).scalar() or 0
+                    if duplicate_count:
+                        conn.execute(text(
+                            "DELETE FROM users "
+                            "WHERE uid IS NOT NULL AND rowid NOT IN ("
+                            "SELECT MIN(rowid) FROM users WHERE uid IS NOT NULL GROUP BY uid)"
+                        ))
+                        print(f"[Migrate] Removed duplicate users rows for {duplicate_count} uid(s).")
+                    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_uid ON users(uid)"))
+                    conn.commit()
+            except Exception as e:
+                print(f"[Migrate] users.uid unique guard skipped: {e}")
         if 'messages' in inspector.get_table_names():
             # 检查是否存在旧约束（表级 UNIQUE CONSTRAINT，非索引）
             constraints = inspector.get_unique_constraints('messages')
@@ -79,18 +99,14 @@ with app.app_context():
     accounts = Account.query.all()
     for acc in accounts:
         user_name_map[acc.uid] = acc.username
+    users_list = UserInfo.query.all()
+    user_info_map = {u.uid: u.info for u in users_list}
+    step3_recommend.user_info_map = dict(user_info_map)
 
 print("Loading GNN model...")
 try:
     embeddings = torch.load("user_embeddings.pt", map_location='cpu', weights_only=False)
 except FileNotFoundError:
-    pass
-
-user_info_map = {}
-try:
-    users_list = UserInfo.query.all()
-    user_info_map = {u.uid: u.info for u in users_list}
-except Exception as e:
     pass
 
 follow_dict = step3_recommend.follow_dict
@@ -125,7 +141,7 @@ def tuijian():
     is_cold_start = False
     try:
         import step3_recommend
-        if sid > step3_recommend.embeddings.shape[0]: is_cold_start = True
+        if not step3_recommend.has_embedding(sid): is_cold_start = True
     except: is_cold_start = True
 
     rec_ids =[]
@@ -412,6 +428,7 @@ def api_register():
         db.session.add(UserInfo(uid=new_uid, info=info))
         db.session.commit()
         user_info_map[new_uid] = info
+        step3_recommend.user_info_map[new_uid] = info
         user_name_map[new_uid] = username
         return jsonify({"status": "success", "message": "注册成功", "data": {"uid": new_uid, "username": username, "info": info, "profile_scores": profile_scores}}), 201
     except Exception as e:
@@ -437,6 +454,7 @@ def update_questionnaire_profile():
             db.session.add(UserInfo(uid=uid, info=new_info))
         db.session.commit()
         user_info_map[uid] = new_info
+        step3_recommend.user_info_map[uid] = new_info
         return jsonify({
             "status": "success",
             "message": "画像问卷已更新",
@@ -517,6 +535,7 @@ def update_user_profile():
             # 更新内存中的资料 Map，保证 API 立即返回新结果
             global user_info_map
             user_info_map[uid] = new_info
+            step3_recommend.user_info_map[uid] = new_info
 
         # 提交所有更改到数据库
         db.session.commit()
@@ -531,7 +550,7 @@ def update_user_profile():
         return jsonify({"status": "error", "message": str(e)}), 500
        
 # ==========================================
-# 🚀 核心修复：这个就是之前消失的星图实时头像接口！
+# 核心修复：这个就是之前消失的星图实时头像接口！
 # ==========================================
 @app.route('/api/users/avatars', methods=['GET'])
 def get_all_avatars():
@@ -668,14 +687,17 @@ def delete_competition_experience(exp_id):
 # ==========================================
 @app.route('/api/admin/retrain', methods=['POST'])
 def admin_retrain():
+    global user_info_map, follow_dict
     try:
         result = run_pipeline()
         if result.get('status') != 'success': raise Exception(result.get('message', '未知错误'))
         step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
+        step3_recommend.load_embedding_uid_order()
         step3_recommend.follow_dict = step3_recommend.load_social_data()
-        global user_info_map
+        follow_dict = step3_recommend.follow_dict
         users_list = UserInfo.query.all()
         user_info_map = {u.uid: u.info for u in users_list}
+        step3_recommend.user_info_map = dict(user_info_map)
         return jsonify({"status": "success", "message": "模型重训完毕！已成功吸收新增的社交关系与新用户！"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -798,62 +820,158 @@ def delete_friend_group():
 # ==========================================
 def daily_retrain_task():
     print(f"\n[Scheduler] === 开始执行每日定时 T+1 重训任务 ===")
+    global user_info_map, follow_dict
     try:
         result = run_pipeline()
         if result.get('status') != 'success': return
         with app.app_context():
             step3_recommend.embeddings = torch.load('user_embeddings.pt', map_location='cpu', weights_only=False)
+            step3_recommend.load_embedding_uid_order()
             step3_recommend.follow_dict = step3_recommend.load_social_data()
-            global user_info_map
+            follow_dict = step3_recommend.follow_dict
             users_list = UserInfo.query.all()
             user_info_map = {u.uid: u.info for u in users_list}
+            step3_recommend.user_info_map = dict(user_info_map)
         print(f"[Scheduler] === 每日定时 T+1 重训任务执行成功！ ===")
     except Exception as e:
         print(f"[Scheduler] 异常: {e}")
 
 @app.route('/api/graph/dynamic_data')
 def get_dynamic_graph_data():
-    """图谱动态合并接口：保留坐标结构，替换实时属性"""
+    """Merge the last GNN graph with live DB nodes/edges."""
     import json
+    from sqlalchemy import text
+    from models import Account, Activity, UserInfo, UserVisitLog
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     json_path = os.path.join(current_dir, 'static', 'graph.json')
-    
-    if not os.path.exists(json_path):
-        return jsonify({"error": "Graph not initialized"}), 404
 
-    # 1. 读取 GNN 算好的基础结构
-    with open(json_path, 'r', encoding='utf-8') as f:
-        graph_data = json.load(f)
+    graph_data = {"nodes": [], "links": []}
+    if os.path.exists(json_path):
+        with open(json_path, 'r', encoding='utf-8') as f:
+            graph_data = json.load(f)
+    graph_data.setdefault("nodes", [])
+    graph_data.setdefault("links", [])
 
-    # 2. 获取数据库实时属性
-    from models import Account, Activity, UserVisitLog
+    def normalize_graph_id(value):
+        if isinstance(value, dict):
+            value = value.get("id")
+        if value is None:
+            return None
+        return str(value)
+
     accounts = Account.query.all()
+    users = UserInfo.query.all()
     acc_map = {acc.uid: acc for acc in accounts}
-    
-    # 3. 计算实时红点脉冲逻辑
+    info_map = {user.uid: user.info for user in users}
+
+    node_map = {}
+    deduped_nodes = []
+    for node in graph_data["nodes"]:
+        node_id = normalize_graph_id(node.get("id"))
+        if not node_id or node_id in node_map:
+            continue
+        node["id"] = node_id
+        node_map[node_id] = node
+        deduped_nodes.append(node)
+    graph_data["nodes"] = deduped_nodes
+
+    def infer_semantic_community(info_str):
+        best_comm = ""
+        max_matches = 0
+        for comm, keywords in COMMUNITY_RULES.items():
+            matches = sum(1 for kw in keywords if kw in str(info_str))
+            if matches > max_matches:
+                max_matches = matches
+                best_comm = comm
+        return best_comm
+
+    live_uids = sorted(uid for uid in (set(acc_map) | set(info_map)) if uid and uid > 0)
+    for uid in live_uids:
+        node_id = str(uid)
+        node = node_map.get(node_id)
+        if node is None:
+            node = {"id": node_id, "group": 0, "val": 5}
+            node_map[node_id] = node
+            graph_data["nodes"].append(node)
+
+        acc = acc_map.get(uid)
+        info = info_map.get(uid, node.get("info", ""))
+        node["username"] = acc.username if acc else node.get("username", f"User_{uid}")
+        node["avatar"] = acc.avatar if acc else node.get("avatar")
+        node["signature"] = acc.signature if acc else node.get("signature", "")
+        node["status"] = acc.status if acc else node.get("status", "")
+        node["info"] = info
+        node["community"] = infer_semantic_community(info) or node.get("community", "")
+        node.setdefault("group", 0)
+        node.setdefault("val", 5)
+
+    valid_node_ids = set(node_map)
+    merged_links = []
+    link_keys = set()
+
+    def add_link(source, target):
+        source_id = normalize_graph_id(source)
+        target_id = normalize_graph_id(target)
+        if not source_id or not target_id:
+            return
+        if source_id not in valid_node_ids or target_id not in valid_node_ids:
+            return
+        key = (source_id, target_id)
+        if key in link_keys:
+            return
+        link_keys.add(key)
+        merged_links.append({"source": source_id, "target": target_id})
+
+    for link in graph_data["links"]:
+        add_link(link.get("source"), link.get("target"))
+
+    live_edges = db.session.execute(text(
+        "SELECT source_id, target_id FROM edges_time "
+        "WHERE source_id > 0 AND target_id > 0"
+    )).fetchall()
+    for source_id, target_id in live_edges:
+        add_link(source_id, target_id)
+
+    graph_data["links"] = merged_links
+
+    degrees = {}
+    for link in graph_data["links"]:
+        source_id = normalize_graph_id(link.get("source"))
+        target_id = normalize_graph_id(link.get("target"))
+        degrees[source_id] = degrees.get(source_id, 0) + 1
+        degrees[target_id] = degrees.get(target_id, 0) + 1
+    for node in graph_data["nodes"]:
+        node_id = normalize_graph_id(node.get("id"))
+        try:
+            current_val = float(node.get("val", 5) or 5)
+        except (TypeError, ValueError):
+            current_val = 5
+        node["val"] = max(current_val, degrees.get(node_id, 0) * 2 + 5)
+
     my_uid = session.get('uid')
+    latest_activity_at = {}
+    visit_at = {}
+    if my_uid:
+        for activity in Activity.query.order_by(Activity.created_at.desc()).all():
+            latest_activity_at.setdefault(activity.publisher_uid, activity.created_at)
+        visit_at = {
+            log.target_uid: log.last_visit_at
+            for log in UserVisitLog.query.filter_by(viewer_uid=my_uid).all()
+        }
+
     for node in graph_data['nodes']:
-        uid_int = int(node['id'])
-        if uid_int in acc_map:
-            acc = acc_map[uid_int]
-            node['username'] = acc.username
-            node['avatar'] = acc.avatar
-            node['signature'] = acc.signature
-            node['status'] = acc.status
-            
-            # 🚀 核心修复：更严谨的动态判定逻辑
-            has_pulse = False
-            if my_uid and uid_int != my_uid:
-                # 找到该节点最新的活动
-                last_act = Activity.query.filter_by(publisher_uid=uid_int).order_by(Activity.created_at.desc()).first()
-                if last_act:
-                    # 找到当前用户对该节点的最后访问记录
-                    last_visit = UserVisitLog.query.filter_by(viewer_uid=my_uid, target_uid=uid_int).first()
-                    # 如果从未看过，或者最后活动时间 > 最后访问时间，则闪烁
-                    # 加上 1 秒冗余量，防止数据库写入延迟导致的判定失效
-                    if not last_visit or last_act.created_at > last_visit.last_visit_at:
-                        has_pulse = True
-            node['hasPulse'] = has_pulse
+        try:
+            uid_int = int(node['id'])
+        except (TypeError, ValueError):
+            node['hasPulse'] = False
+            continue
+        last_activity_at = latest_activity_at.get(uid_int)
+        last_visit_at = visit_at.get(uid_int)
+        node['hasPulse'] = bool(
+            my_uid and uid_int != my_uid and last_activity_at and
+            (not last_visit_at or last_activity_at > last_visit_at)
+        )
 
     return jsonify(graph_data)
 #私聊接口

@@ -87,8 +87,13 @@ window.openUserModal = async function(explicitId) {
         const rData = await r2.json();
         
         document.getElementById('modalUsername').innerText = uData.username || 'User';
-        document.getElementById('modalAvatar').innerText = (uData.username || 'U').charAt(0).toUpperCase();
-        State.loadAvatar(uData.student_id || sid, 'modalAvatar');
+        const modalInitial = (uData.username || 'U').charAt(0).toUpperCase();
+        const modalAvatar = document.getElementById('modalAvatar');
+        modalAvatar.style.backgroundImage = 'none';
+        modalAvatar.style.backgroundColor = '#fef3c7';
+        modalAvatar.style.color = '#b45309';
+        modalAvatar.innerText = modalInitial;
+        State.loadAvatar(uData.student_id || sid, 'modalAvatar', true, modalInitial);
 
         document.getElementById('modalStatus').innerText = uData.status || "找朋友";
         document.getElementById('modalSignature').innerText = uData.signature ? `“${uData.signature}”` : "“这个人很懒，什么都没留下”";
@@ -225,8 +230,12 @@ window.openSocialDrawer = async function(uid) {
         
         // 头像加载
         const avatarEl = document.getElementById('drawerAvatar');
-        avatarEl.innerText = '';
-        State.loadAvatar(uid, 'drawerAvatar');
+        const drawerInitial = (uData.username || 'U').charAt(0).toUpperCase();
+        avatarEl.style.backgroundImage = 'none';
+        avatarEl.style.backgroundColor = '#fef3c7';
+        avatarEl.style.color = '#b45309';
+        avatarEl.innerText = drawerInitial;
+        State.loadAvatar(uid, 'drawerAvatar', true, drawerInitial);
 
         // 跳转主页按钮
         document.getElementById('drawerProfileBtn').onclick = () => {

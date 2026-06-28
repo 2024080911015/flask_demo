@@ -14,6 +14,37 @@ except FileNotFoundError:
     print(" 找不到 user_embeddings.pt")
     exit()
 
+uid_order = []
+uid_to_embedding_index = {}
+embedding_index_to_uid = {}
+
+def load_embedding_uid_order():
+    global uid_order, uid_to_embedding_index, embedding_index_to_uid
+    order_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'embedding_uid_order.pt')
+    try:
+        loaded = torch.load(order_path, map_location='cpu', weights_only=False)
+        uid_order = [int(uid) for uid in loaded.tolist()]
+    except FileNotFoundError:
+        uid_order = list(range(1, embeddings.shape[0] + 1))
+
+    if len(uid_order) != embeddings.shape[0]:
+        print(" embedding uid 映射长度与向量数量不一致，回退到连续 uid 映射。")
+        uid_order = list(range(1, embeddings.shape[0] + 1))
+
+    uid_to_embedding_index = {uid: idx for idx, uid in enumerate(uid_order)}
+    embedding_index_to_uid = {idx: uid for idx, uid in enumerate(uid_order)}
+
+def has_embedding(user_id):
+    return int(user_id) in uid_to_embedding_index
+
+def get_embedding_for_uid(user_id):
+    idx = uid_to_embedding_index.get(int(user_id))
+    if idx is None:
+        return None
+    return embeddings[idx]
+
+load_embedding_uid_order()
+
 # 2. 从数据库加载用户信息
 db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'campus_social.db')
 conn = sqlite3.connect(db_path)
@@ -131,8 +162,8 @@ COMMUNITY_RULES = {
     ]
 }
 def recommend_friends(user_id, top_k=5, mode="social", community=None):
-    u_idx = user_id - 1
-    if u_idx < 0 or u_idx >= embeddings.shape[0]:
+    u_idx = uid_to_embedding_index.get(int(user_id))
+    if u_idx is None:
         return []
 
     target_emb = embeddings[u_idx].unsqueeze(0)
@@ -146,7 +177,9 @@ def recommend_friends(user_id, top_k=5, mode="social", community=None):
     candidate_gnn_scores = {}
     
     for idx in sorted_indices.tolist():
-        rid = idx + 1
+        rid = embedding_index_to_uid.get(int(idx))
+        if rid is None:
+            continue
         if rid == user_id: 
             continue
             

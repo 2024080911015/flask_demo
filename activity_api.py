@@ -31,9 +31,8 @@ def send_notification(sender_uid, receiver_uid, content):
 
 def get_user_embedding(uid):
     try:
-        embeddings = torch.load("user_embeddings.pt", map_location='cpu', weights_only=False)
-        idx = uid - 1
-        if 0 <= idx < embeddings.shape[0]: return embeddings[idx]
+        import step3_recommend
+        return step3_recommend.get_embedding_for_uid(uid)
     except:
         pass
     return None

@@ -5,7 +5,7 @@ from torch_geometric.utils import negative_sampling
 from sklearn.metrics import roc_auc_score
 import numpy as np
 
-print("🧠 [Step 2] 正在启动 GCN 链路预测训练引擎...")
+print("[Step 2] 正在启动 GCN 链路预测训练引擎...")
 
 # 1. 加载数据
 data = torch.load('campus_graph_full.pt', weights_only=False)
@@ -83,5 +83,7 @@ with torch.no_grad():
     final_embeddings = model(data.x, data.edge_index, data.edge_weight)
     # 保存为后端推荐可用的 .pt 文件
     torch.save(final_embeddings.cpu(), 'user_embeddings.pt')
+    if hasattr(data, "uid_list"):
+        torch.save(data.uid_list.cpu(), "embedding_uid_order.pt")
 
-print("\n✅ GCN 模型训练完成，精炼特征已存入 user_embeddings.pt")
+print("\n[OK] GCN 模型训练完成，精炼特征已存入 user_embeddings.pt")

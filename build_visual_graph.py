@@ -26,7 +26,7 @@ def get_semantic_community(info_str):
     return best_comm
 
 def generate_graph_json():
-    print("🌌 正在构建包含签名与状态的神经图谱...")
+    print("正在构建包含签名与状态的神经图谱...")
     current_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(current_dir, 'campus_social.db')
     
@@ -48,7 +48,7 @@ def generate_graph_json():
         df_edges = pd.read_sql_query("SELECT source_id, target_id FROM edges_time", conn)
         conn.close()
     except Exception as e:
-        print(f"⚠️ 读取数据库信息失败: {e}")
+        print(f"[WARN] 读取数据库信息失败: {e}")
         return False
 
     output_json = os.path.join(current_dir, 'static', 'graph.json')
@@ -71,7 +71,7 @@ def generate_graph_json():
         
         acc = account_dict.get(int(node_id), {})
         
-        # 🚀 核心修复：将新字段压入 JSON 节点
+        # 核心修复：将新字段压入 JSON 节点
         nodes_data.append({
             "id": str(node_id),
             "username": acc.get('username', f"User_{node_id}"),
@@ -89,7 +89,7 @@ def generate_graph_json():
     with open(output_json, 'w', encoding='utf-8') as f:
         json.dump({"nodes": nodes_data, "links": links_data}, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ 包含签名与状态的 graph.json 生成完毕！")
+    print("[OK] 包含签名与状态的 graph.json 生成完毕！")
     return True
 
 if __name__ == "__main__":

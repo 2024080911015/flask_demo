@@ -5,7 +5,7 @@ import numpy as np
 import sqlite3
 import os
 
-print("🚀 [Step 1] 正在重构 GCN 数据工程: [52维特征 + 时序拓扑 + 指数衰减]...")
+print("[Step 1] 正在重构 GCN 数据工程: [52维特征 + 时序拓扑 + 指数衰减]...")
 
 # 1. 特征编码字典定义 (保持与你之前逻辑一致)
 GENDERS, GRADES = ["男", "女"], ["大一","大二","大三","大四","研一","研二","研三","博士"]
@@ -37,18 +37,46 @@ def encode_user(info_str):
 # 2. 从数据库读取实时数据
 db_path = 'campus_social.db'
 conn = sqlite3.connect(db_path)
-df_users = pd.read_sql_query("SELECT uid, info FROM users ORDER BY uid ASC", conn)
+df_users = pd.read_sql_query("SELECT uid, info FROM users WHERE uid > 0 ORDER BY uid ASC", conn)
 df_edges = pd.read_sql_query("SELECT timestamp, source_id, target_id FROM edges_time", conn)
 conn.close()
+
+df_users["uid"] = pd.to_numeric(df_users["uid"], errors="coerce")
+df_users = df_users.dropna(subset=["uid"]).copy()
+df_users["uid"] = df_users["uid"].astype(int)
+duplicate_user_count = int(df_users.duplicated(subset="uid").sum())
+if duplicate_user_count:
+    print(f"[WARN] 检测到 {duplicate_user_count} 条重复 uid 用户记录，已保留最后一条。")
+df_users = df_users.drop_duplicates(subset="uid", keep="last").reset_index(drop=True)
+uid_order = df_users["uid"].tolist()
+uid_to_idx = {uid: idx for idx, uid in enumerate(uid_order)}
+valid_uids = set(uid_order)
 
 # 3. 构造节点特征矩阵 X
 x = torch.tensor(np.array([encode_user(row['info']) for _, row in df_users.iterrows()]), dtype=torch.float)
 
 # 4. 处理边与指数时间衰减 (Exponential Decay)
 if not df_edges.empty:
+    original_edge_count = len(df_edges)
+    df_edges["source_id"] = pd.to_numeric(df_edges["source_id"], errors="coerce")
+    df_edges["target_id"] = pd.to_numeric(df_edges["target_id"], errors="coerce")
+    df_edges = df_edges.dropna(subset=["timestamp", "source_id", "target_id"]).copy()
+    df_edges["source_id"] = df_edges["source_id"].astype(int)
+    df_edges["target_id"] = df_edges["target_id"].astype(int)
+    df_edges = df_edges[
+        (df_edges["source_id"] > 0) &
+        (df_edges["target_id"] > 0) &
+        (df_edges["source_id"].isin(valid_uids)) &
+        (df_edges["target_id"].isin(valid_uids))
+    ].copy()
+    dropped_edge_count = original_edge_count - len(df_edges)
+    if dropped_edge_count:
+        print(f"[WARN] 已过滤 {dropped_edge_count} 条无效边。")
+
     df_edges = df_edges.sort_values(by='timestamp').reset_index(drop=True)
     # 计算权重：越新产生的边权重越高 (0.6 ~ 1.0)
-    df_edges['ts_dt'] = pd.to_datetime(df_edges['timestamp'])
+    df_edges['ts_dt'] = pd.to_datetime(df_edges['timestamp'], errors="coerce")
+    df_edges = df_edges.dropna(subset=["ts_dt"]).reset_index(drop=True)
     ts_max, ts_min = df_edges['ts_dt'].max(), df_edges['ts_dt'].min()
     diff = (ts_max - ts_min).total_seconds() + 1e-9
     norm_t = (df_edges['ts_dt'] - ts_min).dt.total_seconds() / diff
@@ -56,15 +84,16 @@ if not df_edges.empty:
     lambda_decay = 0.5 
     weights = np.exp(-lambda_decay * (1.0 - norm_t))
     
-    # 注意：PyG 的 edge_index 是从 0 开始的连续索引，如果 UID 是从 1 开始的，需要减 1
-    edge_index = torch.tensor([df_edges['source_id'].values - 1, 
-                                 df_edges['target_id'].values - 1], dtype=torch.long)
-    edge_weight = torch.tensor(weights, dtype=torch.float)
+    src = df_edges["source_id"].map(uid_to_idx).to_numpy()
+    dst = df_edges["target_id"].map(uid_to_idx).to_numpy()
+    edge_index = torch.tensor(np.array([src, dst], dtype=np.int64), dtype=torch.long)
+    edge_weight = torch.tensor(weights.to_numpy(), dtype=torch.float)
 else:
     edge_index = torch.empty((2, 0), dtype=torch.long)
     edge_weight = torch.empty((0,), dtype=torch.float)
 
 # 5. 保存为 PyG 数据包
 data = Data(x=x, edge_index=edge_index, edge_weight=edge_weight)
+data.uid_list = torch.tensor(uid_order, dtype=torch.long)
 torch.save(data, 'campus_graph_full.pt')
-print(f"✅ 数据包构建完毕: {data.num_nodes} 节点, {data.num_edges} 条边。")
+print(f"[OK] 数据包构建完毕: {data.num_nodes} 节点, {data.num_edges} 条边。")

@@ -26,7 +26,7 @@ window.State = {
             }
         }
     },
-    async loadAvatar(uid, elementId, isBg = true) {
+    async loadAvatar(uid, elementId, isBg = true, fallbackText = null) {
         try {
             const res = await fetch(`/api/user/avatar/${uid}`);
             const data = await res.json();
@@ -39,7 +39,14 @@ window.State = {
                         el.textContent = '';
                     }
                 } else {
-                    if (isBg) el.style.backgroundImage = 'none';
+                    if (isBg) {
+                        el.style.backgroundImage = 'none';
+                        if (fallbackText !== null) {
+                            el.textContent = fallbackText;
+                            el.style.backgroundColor = '#fef3c7';
+                            el.style.color = '#b45309';
+                        }
+                    }
                 }
             }
         } catch (e) {}
